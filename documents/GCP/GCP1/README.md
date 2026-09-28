@@ -84,7 +84,10 @@ Step 07: Argo CD GitOps Setup (Deploys Argo CD on GKE, connects to GitHub repo, 
 Step 09: End-to-End Walkthrough (Complete developer journey from code commit to live GKE pods)
    │
    ▼
-Step 10: Troubleshooting & Recovery (Comprehensive diagnostic matrix for all 12 common error scenarios)
+Step 10: Troubleshooting & Recovery (Comprehensive diagnostic matrix for all 16 common error scenarios)
+   │
+   ▼
+Step 11: Access URLs & Credentials (Live URLs, port-forwards, API endpoints, and admin passwords)
 ```
 
 ---
@@ -104,7 +107,8 @@ Below is the complete index of guides under `documents/GCP/GCP1/`:
 | [`07-argo-cd-setup.md`](file:///Users/aarvik/Documents/huntdevops/documents/GCP/GCP1/07-argo-cd-setup.md) | **Argo CD GitOps Setup** | Argo CD architecture on GKE, declarative `Application` & `AppProject` CRDs, automated reconciliation, and UI credential access. |
 | [`08-terraform-gke-setup.md`](file:///Users/aarvik/Documents/huntdevops/documents/GCP/GCP1/08-terraform-gke-setup.md) | **Terraform Modular Infrastructure** | Modular IaaC (`vpc`, `gke`, `artifact_registry`, `iam`), GCS remote state backend with versioning, zonal placement (`us-central1-a`), and `terraform import` steps. |
 | [`09-end-to-end-flow.md`](file:///Users/aarvik/Documents/huntdevops/documents/GCP/GCP1/09-end-to-end-flow.md) | **End-to-End Walkthrough** | Complete developer journey from local code change to live GKE pod update, detailing every transition step and trigger. |
-| [`10-troubleshooting.md`](file:///Users/aarvik/Documents/huntdevops/documents/GCP/GCP1/10-troubleshooting.md) | **Comprehensive Troubleshooting** | Diagnostic triage and solutions for all 12 common error scenarios (WIF, 409 conflicts, state locks, GCE stockouts, ImagePullBackOff, CrashLoopBackOff). |
+| [`10-troubleshooting.md`](file:///Users/aarvik/Documents/huntdevops/documents/GCP/GCP1/10-troubleshooting.md) | **Comprehensive Troubleshooting** | Diagnostic triage and solutions for all 16 common error scenarios (WIF, 409 conflicts, state locks, GCE stockouts, ImagePullBackOff, CrashLoopBackOff). |
+| [`11-access-urls-and-credentials.md`](file:///Users/aarvik/Documents/huntdevops/documents/GCP/GCP1/11-access-urls-and-credentials.md) | **Access URLs & Credentials** | Direct access URLs, port-forwarding commands, REST API endpoints, database credentials, and one-command multi-service launch script. |
 
 ---
 
