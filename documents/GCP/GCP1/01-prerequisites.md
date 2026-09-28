@@ -1,183 +1,137 @@
-# 01 - Prerequisites & System Tooling Guide
+# 01 - Prerequisites & GCP Setup Guide
 
-This document covers all required tools, dependencies, credentials, and verification steps necessary to operate the **HuntDevOps** GCP/GKE deployment ecosystem from scratch.
-
----
-
-## 🛠️ Required Tools Overview
-
-| Tool | Purpose | Minimum Recommended Version |
-| :--- | :--- | :--- |
-| **Git** | Distributed Version Control | `2.40+` |
-| **Docker** | Containerization Engine & CLI | `24.0+` |
-| **Google Cloud CLI (`gcloud`)** | GCP Management & Authentication | `450.0+` |
-| **Trivy** | Container & Code Vulnerability Scanner | `0.45+` |
-| **Helm** | Kubernetes Package Manager | `v3.12+` |
-| **kubectl** | Kubernetes Command-line Client | `v1.28+` |
-| **Argo CD CLI** | GitOps Controller Management | `v2.9+` |
-| **Terraform** | Infrastructure as Code (IaaC) | `1.5.0+` |
+This document covers all required tools, dependencies, Google Cloud project setup, API enablement, and GitHub secrets necessary to operate the **HuntDevOps** ecosystem cleanly from scratch without permission or policy errors.
 
 ---
 
-## 📥 Detailed Installation & Verification Steps
+## 📋 Prerequisites Checklist
 
-### 1. Git
-* **What it is**: Distributed source control system to track changes and push code to GitHub.
-* **Why it is required**: Source code hosting, triggering GitHub Actions CI/CD workflows, and GitOps state management.
-* **Installation**:
-  ```bash
-  # macOS (Homebrew)
-  brew install git
-
-  # Ubuntu / Debian
-  sudo apt-get update && sudo apt-get install -y git
-  ```
-* **Verification**:
-  ```bash
-  git --version
-  ```
+Before executing any commands, ensure you have:
+- [x] A **Google Cloud Platform (GCP)** account with billing enabled.
+- [x] A terminal shell (`bash` or `zsh`) on macOS or Linux.
+- [x] Administrative access to your GitHub repository ([vikranth18devops/huntdevops](https://github.com/vikranth18devops/huntdevops)).
 
 ---
 
-### 2. Docker
-* **What it is**: Platform for building, running, and managing containerized applications.
-* **Why it is required**: To compile application code into standard OCI container images for the frontend and backend.
-* **Installation**:
-  - Download [Docker Desktop for Mac / Windows](https://www.docker.com/products/docker-desktop/).
-  - For Linux: `sudo apt-get install -y docker.io docker-buildx-plugin`.
-* **Verification**:
-  ```bash
-  docker --version
-  docker info
-  ```
+## 🛠️ Required Tools & Verification
+
+Install and verify all required CLI tools on your workstation:
+
+| Tool | Purpose | Minimum Version | Verification Command |
+| :--- | :--- | :--- | :--- |
+| **Git** | Distributed Version Control | `2.40+` | `git --version` |
+| **Docker** | Container Engine & Build CLI | `24.0+` | `docker --version` |
+| **gcloud CLI** | Google Cloud SDK & Auth | `450.0+` | `gcloud --version` |
+| **Trivy** | Container Security Scanner | `0.45+` | `trivy --version` |
+| **Helm** | Kubernetes Package Manager | `v3.12+` | `helm version` |
+| **kubectl** | Kubernetes CLI | `v1.28+` | `kubectl version --client` |
+| **Argo CD CLI** | GitOps Management | `v2.9+` | `argocd version --client` |
+| **Terraform** | Infrastructure as Code (IaaC) | `1.5.0+` | `terraform -version` |
+
+### Installation Commands:
+```bash
+# macOS (using Homebrew)
+brew install git docker aquasecurity/trivy/trivy helm kubernetes-cli argocd terraform
+brew install --cask google-cloud-sdk
+```
 
 ---
 
-### 3. Google Cloud CLI (`gcloud`)
-* **What it is**: Command-line tool to manage GCP resources, authentication, and Artifact Registry credentials.
-* **Why it is required**: Authenticates your local machine and CI pipeline to Google Cloud APIs and configures Docker login.
-* **Installation**:
-  ```bash
-  # macOS
-  brew install --cask google-cloud-sdk
+## ☁️ Google Cloud Project Configuration
 
-  # Linux
-  curl https://sdk.cloud.google.com | bash
-  exec -l $SHELL
-  ```
-* **Verification**:
-  ```bash
-  gcloud --version
-  gcloud auth list
-  ```
+Set environment variables and configure your active Google Cloud project:
 
----
+```bash
+# Set GCP Project variables
+export GCP_PROJECT_ID="project-e746f24e-392a-429f-a4d"
+export GCP_REGION="us-central1"
+export GCP_ZONE="us-central1-a"
 
-### 4. Trivy Scanner
-* **What it is**: Security scanner for container images, file systems, and infrastructure code.
-* **Why it is required**: Scans Docker images for CVEs (Common Vulnerabilities and Exposures) before pushing to Artifact Registry.
-* **Installation**:
-  ```bash
-  # macOS
-  brew install aquasecurity/trivy/trivy
+# Authenticate with your Google account
+gcloud auth login
 
-  # Linux (Ubuntu)
-  sudo apt-get install wget apt-transport-https gnupg lsb-release -y
-  wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
-  echo deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main | sudo tee -a /etc/apt/sources.list.d/trivy.list
-  sudo apt-get update && sudo apt-get install trivy -y
-  ```
-* **Verification**:
-  ```bash
-  trivy --version
-  ```
+# Set default project and compute configurations
+gcloud config set project ${GCP_PROJECT_ID}
+gcloud config set compute/region ${GCP_REGION}
+gcloud config set compute/zone ${GCP_ZONE}
+```
 
 ---
 
-### 5. Helm
-* **What it is**: Package manager for Kubernetes that templates and manages applications via Charts.
-* **Why it is required**: Manages deployment manifests, service definitions, secrets, and image tag updates for HuntDevOps.
-* **Installation**:
-  ```bash
-  # macOS
-  brew install helm
+## 🔌 Enable Required GCP APIs Upfront
 
-  # Linux
-  curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-  ```
-* **Verification**:
-  ```bash
-  helm version
-  ```
+To prevent `API not enabled` or permission failures during Terraform runs or pipeline execution, enable all essential Google Cloud service APIs in one step:
 
----
+```bash
+gcloud services enable \
+  container.googleapis.com \
+  artifactregistry.googleapis.com \
+  compute.googleapis.com \
+  iam.googleapis.com \
+  iamcredentials.googleapis.com \
+  storage.googleapis.com \
+  cloudresourcemanager.googleapis.com \
+  --project=${GCP_PROJECT_ID}
+```
 
-### 6. `kubectl`
-* **What it is**: Command-line tool for inspecting, managing, and debugging Kubernetes clusters.
-* **Why it is required**: Interacts directly with GKE cluster nodes, pods, services, and namespaces.
-* **Installation**:
-  ```bash
-  gcloud components install kubectl
-  # OR via brew: brew install kubernetes-cli
-  ```
-* **Verification**:
-  ```bash
-  kubectl version --client
-  ```
+*Expected Output*: Operation finishes with exit code `0`.
 
 ---
 
-### 7. Argo CD CLI
-* **What it is**: CLI tool to inspect and trigger synchronization on Argo CD GitOps applications.
-* **Why it is required**: Allows developers to view app health, manual sync status, and logs from the terminal.
-* **Installation**:
-  ```bash
-  # macOS
-  brew install argocd
+## 🔐 Workload Identity Federation (Keyless CI/CD)
 
-  # Linux
-  curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
-  sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
-  rm argocd-linux-amd64
-  ```
-* **Verification**:
-  ```bash
-  argocd version --client
-  ```
+> ⚠️ **Important Security Notice**: Google Cloud enforces `constraints/iam.disableServiceAccountKeyCreation` on projects to prevent leaking `.json` private keys. The modern, Google-recommended solution is **Workload Identity Federation (WIF)**, which enables GitHub Actions to authenticate via OpenID Connect (OIDC) without private key files.
 
----
+### 1. Create Workload Identity Pool
+```bash
+gcloud iam workload-identity-pools create "huntdevops-pool" \
+  --project="${GCP_PROJECT_ID}" \
+  --location="global" \
+  --display-name="HuntDevOps GitHub Actions Pool"
+```
 
-### 8. Terraform
-* **What it is**: Declarative Infrastructure as Code (IaaC) tool.
-* **Why it is required**: Provisions GCP VPC networking, GKE Kubernetes clusters, Artifact Registry repositories, and IAM roles automatically.
-* **Installation**:
-  ```bash
-  # macOS
-  brew install terraform
+### 2. Create GitHub OIDC Provider
+```bash
+gcloud iam workload-identity-pools providers create-oidc "huntdevops-provider" \
+  --project="${GCP_PROJECT_ID}" \
+  --location="global" \
+  --workload-identity-pool="huntdevops-pool" \
+  --display-name="HuntDevOps GitHub Provider" \
+  --issuer-uri="https://token.actions.githubusercontent.com" \
+  --attribute-mapping="google.subject=assertion.sub,attribute.actor=assertion.actor,attribute.repository=assertion.repository" \
+  --attribute-condition="assertion.repository=='vikranth18devops/huntdevops'"
+```
 
-  # Linux
-  sudo apt-get update && sudo apt-get install -y gnupg software-properties-common
-  wget -O- https://apt.releases.hashicorp.com/gpg | gpg --dearmor | sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg
-  echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
-  sudo apt-get update && sudo apt-get install terraform
-  ```
-* **Verification**:
-  ```bash
-  terraform -version
-  ```
+### 3. Grant Service Account Impersonation Rights to GitHub Repo
+```bash
+# Obtain Project Number
+PROJECT_NUMBER=$(gcloud projects describe ${GCP_PROJECT_ID} --format="value(projectNumber)")
+
+# Grant workloadIdentityUser role
+gcloud iam service-accounts add-iam-policy-binding "huntdevops-cicd-sa@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
+  --project="${GCP_PROJECT_ID}" \
+  --role="roles/iam.workloadIdentityUser" \
+  --member="principalSet://iam.googleapis.com/projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/huntdevops-pool/attribute.repository/vikranth18devops/huntdevops"
+```
 
 ---
 
 ## 🔑 Required GitHub Repository Secrets
 
-Configure the following secrets under **GitHub Repository Settings → Secrets and variables → Actions**:
+Configure the following secrets in your GitHub repository under **Settings → Secrets and variables → Actions**:
+👉 **[https://github.com/vikranth18devops/huntdevops/settings/secrets/actions](https://github.com/vikranth18devops/huntdevops/settings/secrets/actions)**
 
-| Secret Name | Description | Required Value |
+| Secret Name | Description | Value |
 | :--- | :--- | :--- |
 | `GCP_PROJECT_ID` | GCP Project Identifier | `project-e746f24e-392a-429f-a4d` |
-| `GCP_REGION` | GCP Target Region | `us-central1` |
-| `GAR_REPOSITORY` | Artifact Registry Repository Name | `huntdevops-repo` |
-| `GCP_WIF_PROVIDER` | Workload Identity Federation Provider resource path | `projects/174952050783/locations/global/workloadIdentityPools/huntdevops-pool/providers/huntdevops-provider` |
-| `GCP_SA_EMAIL` | Service Account Email address | `huntdevops-cicd-sa@project-e746f24e-392a-429f-a4d.iam.gserviceaccount.com` |
+| `GCP_REGION` | Target GCP Region | `us-central1` |
+| `GAR_REPOSITORY` | Artifact Registry Repo Name | `huntdevops-repo` |
+| `GCP_WIF_PROVIDER` | WIF Provider Resource Path | `projects/174952050783/locations/global/workloadIdentityPools/huntdevops-pool/providers/huntdevops-provider` |
+| `GCP_SA_EMAIL` | CI/CD Service Account Email | `huntdevops-cicd-sa@project-e746f24e-392a-429f-a4d.iam.gserviceaccount.com` |
 
-> 💡 **Note**: Because we are using **Workload Identity Federation (WIF)**, no JSON key file (`GCP_SA_KEY`) is needed! Even if you don't define these secrets, the pipeline has fallback defaults configured, but setting them as GitHub Secrets is best practice for production pipelines.
+---
+
+## ⏭️ Next Step
+
+Once prerequisites are verified and APIs are enabled, proceed to:
+👉 **[02 - GCP Artifact Registry Setup & Authentication](file:///Users/aarvik/Documents/huntdevops/documents/GCP/GCP1/02-gcp-artifact-registry.md)**

@@ -1,100 +1,102 @@
 # 02 - GCP Artifact Registry Setup & Authentication Guide
 
-Google Artifact Registry (GAR) is GCP's fully managed, secure container and artifact repository service. It replaces Google Container Registry (GCR) and provides fine-grained IAM access control, regional hosting, and vulnerability scanning integration.
+Google Artifact Registry (GAR) is GCP's fully managed, secure container repository service. It stores and secures Docker container images for **HuntDevOps** and integrates with Trivy security scans, GitHub Actions CI/CD, and GKE.
 
 ---
 
-## 🏗️ Step-by-Step Configuration Guide
+## 📋 Prerequisites
 
-### Step 1: Configure active GCP Project
-Set your target GCP project in the `gcloud` CLI:
-```bash
-gcloud config set project project-e746f24e-392a-429f-a4d
-```
+Before proceeding, ensure you have completed:
+- [x] Installed `gcloud` CLI and authenticated (`gcloud auth login`).
+- [x] Completed **[01-prerequisites.md](file:///Users/aarvik/Documents/huntdevops/documents/GCP/GCP1/01-prerequisites.md)** (GCP project set and APIs enabled).
+- [x] Docker installed and running on your local machine (`docker info`).
 
-### Step 2: Enable Required GCP APIs
-Enable Artifact Registry, Container, and IAM APIs:
-```bash
-gcloud services enable \
-  artifactregistry.googleapis.com \
-  container.googleapis.com \
-  iam.googleapis.com \
-  cloudresourcemanager.googleapis.com
-```
+---
 
-### Step 3: Create the Artifact Registry Repository
-Create a Docker format repository in region `us-central1`:
+## 🏗️ Repository Provisioning (Choose One Approach)
+
+Artifact Registry can be provisioned either through **Terraform (Recommended)** or via the **`gcloud` CLI**:
+
+### Approach A: Terraform (Infrastructure as Code - Recommended)
+The Artifact Registry repository is provisioned declaratively in [infra/terraform/gcp/modules/artifact_registry/main.tf](file:///Users/aarvik/Documents/huntdevops/infra/terraform/gcp/modules/artifact_registry/main.tf). Running `terraform apply` handles repository creation automatically.
+
+### Approach B: Direct `gcloud` CLI Creation
+If provisioning via CLI before running Terraform:
 ```bash
+# 1. Create Docker format repository in us-central1
 gcloud artifacts repositories create huntdevops-repo \
+  --project="project-e746f24e-392a-429f-a4d" \
   --repository-format=docker \
-  --location=us-central1 \
+  --location="us-central1" \
   --description="HuntDevOps Production Container Repository"
 ```
 
+> ⚠️ **Important (Avoiding 409 Conflict)**: If you created the repository via `gcloud`, remember to import it into Terraform state when running Terraform later so it doesn't fail with `409 Already Exists`:
+> ```bash
+> cd infra/terraform/gcp
+> terraform import module.artifact_registry.google_artifact_registry_repository.repo \
+>   projects/project-e746f24e-392a-429f-a4d/locations/us-central1/repositories/huntdevops-repo
+> ```
+
 ---
 
-## 🔒 Authentication Configuration
+## 🔒 Docker Daemon Authentication
 
-### Local Docker CLI Authentication
-Configure your local Docker daemon to authenticate seamlessly against `us-central1-docker.pkg.dev`:
+Configure your local Docker daemon to authenticate seamlessly against Google's `us-central1-docker.pkg.dev` registry:
+
 ```bash
 gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 ```
+*Expected Output*: `Docker configuration file updated.`
 
-### Determining the Container Image Repository URL Structure
-The URL structure for Artifact Registry images follows standard GCP conventions:
+---
+
+## 🏷️ Container Image URL Structure
+
+Artifact Registry image URLs follow standard GCP format:
 ```text
-[LOCATION]-docker.pkg.dev/[PROJECT_ID]/[REPOSITORY_NAME]/[IMAGE_NAME]:[TAG]
+us-central1-docker.pkg.dev/project-e746f24e-392a-429f-a4d/huntdevops-repo/<SERVICE>:<TAG>
 ```
+
 For **HuntDevOps**:
-* **Frontend URL**: `us-central1-docker.pkg.dev/project-e746f24e-392a-429f-a4d/huntdevops-repo/frontend:<tag>`
-* **Backend URL**: `us-central1-docker.pkg.dev/project-e746f24e-392a-429f-a4d/huntdevops-repo/backend:<tag>`
+* **Frontend Image**: `us-central1-docker.pkg.dev/project-e746f24e-392a-429f-a4d/huntdevops-repo/frontend:<tag>`
+* **Backend Image**: `us-central1-docker.pkg.dev/project-e746f24e-392a-429f-a4d/huntdevops-repo/backend:<tag>`
 
 ---
 
-## 🔐 IAM Permissions & Service Account Setup
+## 🔐 IAM Permissions & Service Account
 
-To allow GitHub Actions to build and push container images securely:
+To allow GitHub Actions CI/CD to push container images to Artifact Registry:
 
-1. **Create CI/CD Service Account**:
-   ```bash
-   gcloud iam service-accounts create huntdevops-cicd-sa \
-     --display-name="HuntDevOps CI/CD Service Account"
-   ```
-
-2. **Grant Artifact Registry Writer Role**:
-   ```bash
-   gcloud projects add-iam-policy-binding project-e746f24e-392a-429f-a4d \
-     --member="serviceAccount:huntdevops-cicd-sa@project-e746f24e-392a-429f-a4d.iam.gserviceaccount.com" \
-     --role="roles/artifactregistry.writer"
-   ```
-
-3. **Workload Identity Federation (Keyless Security)**:
-   > ⚠️ **Note**: Google Cloud enforces `constraints/iam.disableServiceAccountKeyCreation` by default to prevent leaking private keys. Instead, Google Cloud and GitHub Actions use **Workload Identity Federation (WIF)**, eliminating the need to download or store service account JSON keys.
-
-   Configured Workload Identity Federation resources:
-   * **Pool**: `huntdevops-pool`
-   * **Provider**: `huntdevops-provider`
-   * **Workload Identity Provider Name**:
-     ```
-     projects/174952050783/locations/global/workloadIdentityPools/huntdevops-pool/providers/huntdevops-provider
-     ```
-   * **Service Account**:
-     ```
-     huntdevops-cicd-sa@project-e746f24e-392a-429f-a4d.iam.gserviceaccount.com
-     ```
-
-   GitHub Actions authenticates directly without any `.json` key files using OIDC tokens (`id-token: write`).
-
----
-
-## 🔍 Verification of Image Pushes
-
-To verify images uploaded to Artifact Registry via CLI:
 ```bash
-# List all container packages in the repository
-gcloud artifacts packages list --repository=huntdevops-repo --location=us-central1
+# 1. Create CI/CD Service Account (if not created via Terraform)
+gcloud iam service-accounts create huntdevops-cicd-sa \
+  --project="project-e746f24e-392a-429f-a4d" \
+  --display-name="HuntDevOps CI/CD Service Account"
 
-# List specific tags for backend image
-gcloud artifacts docker images list us-central1-docker.pkg.dev/project-e746f24e-392a-429f-a4d/huntdevops-repo/backend
+# 2. Grant Artifact Registry Writer role
+gcloud projects add-iam-policy-binding project-e746f24e-392a-429f-a4d \
+  --member="serviceAccount:huntdevops-cicd-sa@project-e746f24e-392a-429f-a4d.iam.gserviceaccount.com" \
+  --role="roles/artifactregistry.writer"
 ```
+
+---
+
+## 🔍 Verification Commands
+
+Verify that the repository is active and ready to accept Docker images:
+
+```bash
+# List all repositories in us-central1
+gcloud artifacts repositories list --location=us-central1 --project=project-e746f24e-392a-429f-a4d
+
+# List images inside huntdevops-repo
+gcloud artifacts docker images list us-central1-docker.pkg.dev/project-e746f24e-392a-429f-a4d/huntdevops-repo
+```
+
+---
+
+## ⏭️ Next Step
+
+Once Artifact Registry is ready and Docker is authenticated, proceed to:
+👉 **[03 - Docker Setup & Multi-Stage Containerization](file:///Users/aarvik/Documents/huntdevops/documents/GCP/GCP1/03-docker-setup.md)**

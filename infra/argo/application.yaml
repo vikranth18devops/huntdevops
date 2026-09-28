@@ -8,7 +8,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: 'https://github.com/aarvik/huntdevops.git'
+    repoURL: 'https://github.com/vikranth18devops/huntdevops.git'
     targetRevision: HEAD
     path: helm/huntdevops
     helm:

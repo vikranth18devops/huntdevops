@@ -1,48 +1,72 @@
 # 04 - Trivy Container Vulnerability Scanning Guide
 
-Security scanning is an essential component of modern DevSecOps pipelines. **Trivy** (by Aqua Security) is a comprehensive scanner that detects vulnerabilities in container images, file systems, and configuration files before images reach production registry repositories.
+Security scanning is an essential component of modern DevSecOps pipelines. **Trivy** (by Aqua Security) detects CVEs (Common Vulnerabilities and Exposures) across container images, language dependencies, and infrastructure code before any image is allowed into production.
+
+---
+
+## 📋 Prerequisites
+
+Before proceeding, ensure you have:
+- [x] Completed **[01-prerequisites.md](file:///Users/aarvik/Documents/huntdevops/documents/GCP/GCP1/01-prerequisites.md)** (Trivy scanner installed).
+- [x] Completed **[03-docker-setup.md](file:///Users/aarvik/Documents/huntdevops/documents/GCP/GCP1/03-docker-setup.md)** (Docker images built locally).
+- [x] Verified Trivy installation:
+  ```bash
+  trivy --version
+  ```
 
 ---
 
 ## 🎯 Security Objective & Policy Enforcement
 
-In the **HuntDevOps** deployment flow, Trivy acts as a **hard security gate**:
+In the **HuntDevOps** pipeline, Trivy acts as an automated **hard security gate**:
 
 ```text
-Build Docker Image ──► Trivy Vulnerability Scan ──┬── Scan FAILED (Critical/High CVEs) ──► STOP PIPELINE (Do Not Push)
-                                                 │
-                                                 └── Scan PASSED (Clean Image) ────────► Proceed to GAR & Helm Push
+Build Docker Image ──► Trivy Vulnerability Scan ──┬── Scan FAILED (Critical/High CVEs) ──► STOP PIPELINE (Exit 1)
+                                                  │
+                                                  └── Scan PASSED (0 Critical/High) ────► Proceed to Artifact Registry
 ```
 
 ### Strict Policy Rules:
 1. **Severity Filter**: `CRITICAL,HIGH`
-2. **Exit Code Policy**: `--exit-code 1` (Returns failure status code `1` if any Critical or High vulnerabilities are found).
-3. **Registry Protection**: Images are **never** published to Google Artifact Registry if Trivy returns an exit code of `1`.
+2. **Exit Code Policy**: `--exit-code 1` (Returns failure status code `1` if any Critical or High vulnerabilities are identified).
+3. **Registry Protection**: Images are **never** published to Google Artifact Registry if Trivy returns exit code `1`.
+4. **Ignore Unfixed**: `--ignore-unfixed=true` (Disregards known CVEs where upstream vendor patches do not yet exist).
 
 ---
 
 ## 💻 Running Trivy Scans Locally
 
-### 1. Scan Local Docker Images
-Before committing code, developers can test container images locally:
+### 1. Scan Container Images
+Test your local Docker images before pushing to GitHub:
 
 ```bash
-# Build test image
-docker build -t huntdevops-backend:test ./backend
+# Scan Frontend Container Image
+trivy image --severity CRITICAL,HIGH --ignore-unfixed --exit-code 1 huntdevops-frontend:local
 
-# Run Trivy vulnerability scan
-trivy image --severity CRITICAL,HIGH --exit-code 1 huntdevops-backend:test
+# Scan Backend Container Image
+trivy image --severity CRITICAL,HIGH --ignore-unfixed --exit-code 1 huntdevops-backend:local
 ```
 
-### 2. Scan Project Filesystem (Dependencies)
-Scan `package-lock.json` and project files for known library vulnerabilities:
+*Expected Output (Clean Pass)*:
+```text
+Total: 0 (UNKNOWN: 0, LOW: 0, MEDIUM: 0, HIGH: 0, CRITICAL: 0)
+```
+Exit code is `0`.
+
+---
+
+### 2. Scan Project Filesystem (NPM Dependencies)
+Scan `package-lock.json` files for vulnerable third-party dependencies:
 
 ```bash
-trivy fs --severity CRITICAL,HIGH .
+# Scan entire project filesystem
+trivy fs --severity CRITICAL,HIGH --ignore-unfixed .
 ```
 
-### 3. Scan Infrastructure as Code (Terraform)
-Scan Terraform modules for security misconfigurations:
+---
+
+### 3. Scan Terraform Infrastructure as Code (IaC)
+Scan Terraform modules for security misconfigurations and best practices:
 
 ```bash
 trivy config ./infra/terraform/gcp
@@ -50,9 +74,9 @@ trivy config ./infra/terraform/gcp
 
 ---
 
-## ⚙️ CI Pipeline Action Integration
+## ⚙️ GitHub Actions CI Integration
 
-In GitHub Actions, Trivy is executed using `aquasecurity/trivy-action`:
+In `.github/workflows/ci.yml`, Trivy is integrated using `aquasecurity/trivy-action`:
 
 ```yaml
 - name: Run Trivy Vulnerability Scan - Backend Image
@@ -66,9 +90,9 @@ In GitHub Actions, Trivy is executed using `aquasecurity/trivy-action`:
     severity: 'CRITICAL,HIGH'
 ```
 
-### Parameter Explanation:
-* `image-ref`: Reference tag of the locally built image.
-* `format: 'table'`: Output format displayed in GitHub Actions job log.
-* `exit-code: '1'`: Fails the job if matching vulnerabilities are identified.
-* `ignore-unfixed: true`: Ignores CVEs where no official security patch exists yet.
-* `severity: 'CRITICAL,HIGH'`: Targets severe vulnerability classifications.
+---
+
+## ⏭️ Next Step
+
+Once security scans pass cleanly, explore how GitHub Actions automates the entire build, scan, and push pipeline:
+👉 **[05 - GitHub Actions CI Pipeline Deep-Dive](file:///Users/aarvik/Documents/huntdevops/documents/GCP/GCP1/05-ci-pipeline.md)**

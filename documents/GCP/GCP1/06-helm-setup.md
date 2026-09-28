@@ -1,22 +1,31 @@
 # 06 - Helm Chart Structure & Deployment Guide
 
-**Helm** is the package manager for Kubernetes. It packages complex Kubernetes applications into reusable, version-controlled charts containing parameterised templates.
+**Helm** is the package manager for Kubernetes. It packages all Kubernetes manifests (Deployments, Services, ConfigMaps, Secrets, Ingress) into reusable, parameterised charts under `helm/huntdevops/`.
 
 ---
 
-## 📁 Helm Chart Directory Architecture
+## 📋 Prerequisites
 
-The application Helm chart is located under `helm/huntdevops/`:
+Before validating or deploying Helm charts, ensure:
+- [x] Completed **[01-prerequisites.md](file:///Users/aarvik/Documents/huntdevops/documents/GCP/GCP1/01-prerequisites.md)** (Helm CLI installed: `helm version`).
+- [x] Connected `kubectl` to your GKE cluster (if deploying directly):
+  ```bash
+  gcloud container clusters get-credentials prod-huntdevops-gke --zone us-central1-a --project project-e746f24e-392a-429f-a4d
+  ```
+
+---
+
+## 📁 Helm Chart Directory Layout
 
 ```text
 helm/
 └── huntdevops/
-    ├── Chart.yaml              # Chart metadata & app versioning
-    ├── values.yaml             # Default configuration values
-    └── templates/              # Kubernetes resource templates
-        ├── _helpers.tpl        # Template helper functions & labels
-        ├── configmap.yaml      # App environment variables
-        ├── postgres-secret.yaml# Database secret credentials
+    ├── Chart.yaml              # Chart metadata & application version
+    ├── values.yaml             # Production default parameters
+    └── templates/              # Parameterized Kubernetes templates
+        ├── _helpers.tpl        # Common labels & helper templates
+        ├── configmap.yaml      # Non-sensitive environment variables
+        ├── postgres-secret.yaml# Database password & secret credentials
         ├── postgres-service.yaml# ClusterIP service for PostgreSQL
         ├── postgres-statefulset.yaml # Persistent database StatefulSet
         ├── backend-deployment.yaml   # Express API Deployment
@@ -28,33 +37,26 @@ helm/
 
 ---
 
-## 📜 Key Configuration Files Explained
+## ⚙️ Core Configuration (`values.yaml`)
 
-### 1. `Chart.yaml`
-Defines chart metadata:
-```yaml
-apiVersion: v2
-name: huntdevops
-description: Helm Chart for HuntDevOps Multi-tier Web Application on GKE
-type: application
-version: 1.0.0
-appVersion: "1.0.0"
-```
+[helm/huntdevops/values.yaml](file:///Users/aarvik/Documents/huntdevops/helm/huntdevops/values.yaml) centralizes image repositories, tags, replicas, and ports:
 
-### 2. `values.yaml`
-Provides configurable variables for container images, replicas, resources, and ports:
 ```yaml
 frontend:
   replicaCount: 2
   image:
     repository: us-central1-docker.pkg.dev/project-e746f24e-392a-429f-a4d/huntdevops-repo/frontend
     tag: "main-latest"
+  service:
+    port: 80
 
 backend:
   replicaCount: 2
   image:
     repository: us-central1-docker.pkg.dev/project-e746f24e-392a-429f-a4d/huntdevops-repo/backend
     tag: "main-latest"
+  service:
+    port: 4000
 
 postgresql:
   enabled: true
@@ -64,28 +66,48 @@ postgresql:
 
 ---
 
-## 🛠️ Chart Validation Commands
+## 🛠️ Validation & Testing Commands
 
-Before deploying or committing changes to Helm charts, always validate syntax and template rendering:
+Always validate charts before committing to Git:
 
 ### 1. Lint the Chart
-Checks chart syntax, indentation, and formatting rules:
+Checks indentation, syntax, and formatting:
 ```bash
 helm lint helm/huntdevops
 ```
 *Expected Output*: `1 chart(s) linted, 0 chart(s) failed`
 
-### 2. Render Template Manifests Locally
-Simulates Kubernetes manifest generation without connecting to a cluster:
+### 2. Render Kubernetes Manifests Locally
+Previews generated Kubernetes YAML without connecting to a cluster:
 ```bash
 helm template huntdevops helm/huntdevops
 ```
 
-### 3. Test Template Rendering with Environment Overrides
+### 3. Dry-Run Installation against GKE Cluster
+Verifies manifests against the live Kubernetes API:
 ```bash
-# Test with development overrides
-helm template huntdevops helm/huntdevops -f infra/helm/values-dev.yaml
-
-# Test with production overrides
-helm template huntdevops helm/huntdevops -f infra/helm/values-prod.yaml
+helm install huntdevops helm/huntdevops --dry-run --namespace huntdevops --create-namespace
 ```
+
+---
+
+## 🚀 Direct Deployment via Helm (Optional)
+
+While Argo CD is our preferred GitOps engine, you can also deploy or upgrade directly using Helm CLI:
+
+```bash
+# Deploy / Upgrade Chart
+helm upgrade --install huntdevops helm/huntdevops \
+  --namespace huntdevops \
+  --create-namespace
+
+# Check rollout status
+kubectl get pods -n huntdevops
+```
+
+---
+
+## ⏭️ Next Step
+
+Now explore how **Argo CD** automates deployment of this Helm chart declaratively using GitOps:
+👉 **[07 - Argo CD GitOps Architecture & Setup](file:///Users/aarvik/Documents/huntdevops/documents/GCP/GCP1/07-argo-cd-setup.md)**

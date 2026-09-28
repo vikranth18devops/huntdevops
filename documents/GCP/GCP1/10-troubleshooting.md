@@ -4,6 +4,29 @@ This document provides a beginner-friendly diagnostic matrix for resolving issue
 
 ---
 
+## ⚡ Quick Diagnostic Health Check
+
+Run these rapid commands to instantly locate where an issue is occurring:
+
+```bash
+# 1. Check GKE Cluster Status
+gcloud container clusters describe prod-huntdevops-gke --zone us-central1-a --project project-e746f24e-392a-429f-a4d --format="value(status)"
+
+# 2. Check Kubernetes Pod Status
+kubectl get pods -n huntdevops -o wide
+
+# 3. Check Pod Logs (if CrashLoopBackOff)
+kubectl logs -n huntdevops -l app=backend --tail=50
+
+# 4. Check Argo CD App Status
+argocd app get huntdevops-app
+
+# 5. Check Terraform State
+cd infra/terraform/gcp && terraform state list
+```
+
+---
+
 ## 🔍 Diagnostic Matrix
 
 ### Issue 1: Docker Build Fails (`npm ci` or Compilation Error)

@@ -4,6 +4,19 @@ This document details the complete step-by-step procedure to provision and manag
 
 ---
 
+## 📋 Prerequisites
+
+Before running Terraform commands, ensure:
+- [x] Completed **[01-prerequisites.md](file:///Users/aarvik/Documents/huntdevops/documents/GCP/GCP1/01-prerequisites.md)** (Terraform installed: `terraform -version >= 1.5.0`).
+- [x] Authenticated with Google Cloud:
+  ```bash
+  gcloud auth application-default login
+  gcloud config set project project-e746f24e-392a-429f-a4d
+  ```
+- [x] All required GCP APIs enabled (`container`, `compute`, `artifactregistry`, `iam`, `storage`).
+
+---
+
 ## 🏗️ Modular Architecture Layout
 
 Terraform code is organized under `infra/terraform/gcp/` using reusable modules:
