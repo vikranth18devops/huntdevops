@@ -11,8 +11,14 @@ on:
       - 'README.md'
   pull_request:
     branches:
-      - main 
+      - main
   workflow_dispatch:
+    inputs:
+      enable_trivy_scan:
+        description: 'Run Trivy Vulnerability Security Scan?'
+        required: true
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -65,10 +71,10 @@ jobs:
         working-directory: ./backend
 
   # =============================================================
-  # STAGE 2 (PARALLEL): Docker Build & Trivy Security Scans
+  # STAGE 2 (PARALLEL): Docker Image Builds
   # =============================================================
-  scan-frontend:
-    name: 2. Docker & Trivy Scan (Frontend)
+  docker-build-frontend:
+    name: 2. Docker Build (Frontend)
     needs: [build-frontend]
     runs-on: ubuntu-latest
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
@@ -77,6 +83,37 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build Frontend Docker Image
+        run: |
+          docker build -t huntdevops-frontend:${{ github.sha }} ./frontend
+
+  docker-build-backend:
+    name: 2. Docker Build (Backend)
+    needs: [build-backend]
+    runs-on: ubuntu-latest
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Build Backend Docker Image
+        run: |
+          docker build -t huntdevops-backend:${{ github.sha }} ./backend
+
+  # =============================================================
+  # STAGE 3 (PARALLEL): On-Demand Trivy Security Scans
+  # =============================================================
+  trivy-scan-frontend:
+    name: 3. Trivy Security Scan (Frontend)
+    needs: [docker-build-frontend]
+    runs-on: ubuntu-latest
+    if: |
+      !contains(github.event.head_commit.message, '[skip ci]') &&
+      (github.event_name != 'workflow_dispatch' || inputs.enable_trivy_scan == true)
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Build Frontend Image for Scanning
         run: |
           docker build -t huntdevops-frontend:${{ github.sha }} ./frontend
 
@@ -90,16 +127,18 @@ jobs:
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
 
-  scan-backend:
-    name: 2. Docker & Trivy Scan (Backend)
-    needs: [build-backend]
+  trivy-scan-backend:
+    name: 3. Trivy Security Scan (Backend)
+    needs: [docker-build-backend]
     runs-on: ubuntu-latest
-    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    if: |
+      !contains(github.event.head_commit.message, '[skip ci]') &&
+      (github.event_name != 'workflow_dispatch' || inputs.enable_trivy_scan == true)
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      - name: Build Backend Docker Image
+      - name: Build Backend Image for Scanning
         run: |
           docker build -t huntdevops-backend:${{ github.sha }} ./backend
 
@@ -114,23 +153,51 @@ jobs:
           severity: 'CRITICAL,HIGH'
 
   # =============================================================
-  # STAGE 3: Push to Artifact Registry & Update Helm (Main Branch)
+  # STAGE 4: Push to Artifact Registry & Update Helm (Main Branch)
   # =============================================================
   push-gar-and-update-helm:
-    name: 3. GAR Push & Helm Tag Update
-    needs: [scan-frontend, scan-backend]
+    name: 4. GAR Push & Helm Tag Update
+    needs: [docker-build-frontend, docker-build-backend, trivy-scan-frontend, trivy-scan-backend]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[skip ci]')
-    env:
-      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID || 'project-e746f24e-392a-429f-a4d' }}
-      GCP_REGION: ${{ secrets.GCP_REGION || 'us-central1' }}
-      GAR_REPOSITORY: ${{ secrets.GAR_REPOSITORY || 'huntdevops-repo' }}
+    if: |
+      always() &&
+      github.ref == 'refs/heads/main' &&
+      !contains(github.event.head_commit.message, '[skip ci]') &&
+      needs.docker-build-frontend.result == 'success' &&
+      needs.docker-build-backend.result == 'success' &&
+      (needs.trivy-scan-frontend.result == 'success' || needs.trivy-scan-frontend.result == 'skipped') &&
+      (needs.trivy-scan-backend.result == 'success' || needs.trivy-scan-backend.result == 'skipped')
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
+
+      - name: Sanitize GCP Variables & Set Image Tags
+        id: prep
+        run: |
+          # Strip accidental carriage returns, newlines, and spaces from GitHub secrets
+          RAW_PROJECT_ID="${{ secrets.GCP_PROJECT_ID || 'project-e746f24e-392a-429f-a4d' }}"
+          RAW_REGION="${{ secrets.GCP_REGION || 'us-central1' }}"
+          RAW_REPO="${{ secrets.GAR_REPOSITORY || 'huntdevops-repo' }}"
+
+          CLEAN_PROJECT_ID=$(echo "$RAW_PROJECT_ID" | tr -d '[:space:]')
+          CLEAN_REGION=$(echo "$RAW_REGION" | tr -d '[:space:]')
+          CLEAN_REPO=$(echo "$RAW_REPO" | tr -d '[:space:]')
+
+          # Fallback defaults if empty
+          [ -z "$CLEAN_PROJECT_ID" ] && CLEAN_PROJECT_ID="project-e746f24e-392a-429f-a4d"
+          [ -z "$CLEAN_REGION" ] && CLEAN_REGION="us-central1"
+          [ -z "$CLEAN_REPO" ] && CLEAN_REPO="huntdevops-repo"
+
+          IMAGE_TAG="${{ github.sha }}"
+          GAR_PREFIX="${CLEAN_REGION}-docker.pkg.dev/${CLEAN_PROJECT_ID}/${CLEAN_REPO}"
+
+          echo "GCP_REGION_CLEAN=${CLEAN_REGION}" >> $GITHUB_ENV
+          echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_ENV
+          echo "FRONTEND_IMAGE=${GAR_PREFIX}/frontend" >> $GITHUB_ENV
+          echo "BACKEND_IMAGE=${GAR_PREFIX}/backend" >> $GITHUB_ENV
 
       - name: Authenticate to Google Cloud Platform (Workload Identity Federation)
         uses: google-github-actions/auth@v2
@@ -143,17 +210,7 @@ jobs:
 
       - name: Configure Docker CLI for GCP Artifact Registry
         run: |
-          gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
-
-      - name: Define Image Tags
-        id: tags
-        run: |
-          IMAGE_TAG="${{ github.sha }}"
-          GAR_PREFIX="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}"
-          
-          echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_ENV
-          echo "FRONTEND_IMAGE=${GAR_PREFIX}/frontend" >> $GITHUB_ENV
-          echo "BACKEND_IMAGE=${GAR_PREFIX}/backend" >> $GITHUB_ENV
+          gcloud auth configure-docker ${{ env.GCP_REGION_CLEAN }}-docker.pkg.dev --quiet
 
       - name: Build & Push Frontend Image to GAR
         run: |

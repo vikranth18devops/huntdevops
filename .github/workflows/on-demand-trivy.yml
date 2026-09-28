@@ -1,0 +1,73 @@
+name: On-Demand Trivy Security Scan
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Target component to scan'
+        required: true
+        type: choice
+        options:
+          - all
+          - frontend
+          - backend
+        default: all
+      severity:
+        description: 'Vulnerability severity threshold'
+        required: true
+        type: choice
+        options:
+          - 'CRITICAL,HIGH'
+          - 'CRITICAL,HIGH,MEDIUM'
+          - 'ALL'
+        default: 'CRITICAL,HIGH'
+      fail_on_detection:
+        description: 'Fail workflow (exit code 1) if vulnerabilities are found?'
+        required: true
+        type: boolean
+        default: true
+
+jobs:
+  scan-frontend:
+    name: Scan Frontend Container
+    if: inputs.target == 'all' || inputs.target == 'frontend'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Build Frontend Docker Image
+        run: |
+          docker build -t huntdevops-frontend:security-check ./frontend
+
+      - name: Run Trivy Scan (Frontend)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'huntdevops-frontend:security-check'
+          format: 'table'
+          exit-code: ${{ inputs.fail_on_detection && '1' || '0' }}
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: ${{ inputs.severity == 'ALL' && 'UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL' || inputs.severity }}
+
+  scan-backend:
+    name: Scan Backend Container
+    if: inputs.target == 'all' || inputs.target == 'backend'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Build Backend Docker Image
+        run: |
+          docker build -t huntdevops-backend:security-check ./backend
+
+      - name: Run Trivy Scan (Backend)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'huntdevops-backend:security-check'
+          format: 'table'
+          exit-code: ${{ inputs.fail_on_detection && '1' || '0' }}
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: ${{ inputs.severity == 'ALL' && 'UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL' || inputs.severity }}
