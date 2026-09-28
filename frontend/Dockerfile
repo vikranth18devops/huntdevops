@@ -12,6 +12,9 @@ RUN npm run build
 # Stage 2: NGINX Web Server Runtime
 FROM nginx:1.27-alpine AS runner
 
+# Patch OS packages against CVEs
+RUN apk update && apk upgrade --no-cache
+
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 

@@ -19,58 +19,68 @@ permissions:
   id-token: write
 
 jobs:
-  # -------------------------------------------------------------
-  # Stage 1: Build Application Code (Frontend & Backend))
-  # -------------------------------------------------------------
-  build-application:
-    name: 1. Build Application Code
+  # =============================================================
+  # STAGE 1 (PARALLEL): Application Code Builds
+  # =============================================================
+  build-frontend:
+    name: 1. Build Frontend React
     runs-on: ubuntu-latest
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 20 Runtime
+      - name: Setup Node.js Runtime
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'npm'
-          cache-dependency-path: |
-            frontend/package-lock.json
-            backend/package-lock.json
+          cache-dependency-path: frontend/package-lock.json
 
-      - name: Build Frontend React Code
+      - name: Build Frontend React App
         run: |
           npm ci
           npm run build
         working-directory: ./frontend
 
-      - name: Build Backend TypeScript Code
-        run: |
-          npm ci
-          npm run build
-        working-directory: ./backend
-
-  # -------------------------------------------------------------
-  # Stage 2: Build Docker Image & Trivy Security Scan (Runs in Parallel)
-  # -------------------------------------------------------------
-  docker-trivy-scan:
-    name: 2. Build Docker & Trivy Security Scan
+  build-backend:
+    name: 1. Build Backend TypeScript
     runs-on: ubuntu-latest
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      - name: Build Frontend Docker Image (Local Test Tag)
+      - name: Setup Node.js Runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Build Backend TypeScript API
+        run: |
+          npm ci
+          npm run build
+        working-directory: ./backend
+
+  # =============================================================
+  # STAGE 2 (PARALLEL): Docker Build & Trivy Security Scans
+  # =============================================================
+  scan-frontend:
+    name: 2. Docker & Trivy Scan (Frontend)
+    needs: [build-frontend]
+    runs-on: ubuntu-latest
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Build Frontend Docker Image
         run: |
           docker build -t huntdevops-frontend:${{ github.sha }} ./frontend
 
-      - name: Build Backend Docker Image (Local Test Tag)
-        run: |
-          docker build -t huntdevops-backend:${{ github.sha }} ./backend
-
-      - name: Run Trivy Vulnerability Scan - Frontend Image
+      - name: Run Trivy Vulnerability Scan - Frontend
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: 'huntdevops-frontend:${{ github.sha }}'
@@ -80,7 +90,20 @@ jobs:
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
 
-      - name: Run Trivy Vulnerability Scan - Backend Image
+  scan-backend:
+    name: 2. Docker & Trivy Scan (Backend)
+    needs: [build-backend]
+    runs-on: ubuntu-latest
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Build Backend Docker Image
+        run: |
+          docker build -t huntdevops-backend:${{ github.sha }} ./backend
+
+      - name: Run Trivy Vulnerability Scan - Backend
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: 'huntdevops-backend:${{ github.sha }}'
@@ -90,12 +113,12 @@ jobs:
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
 
-  # -------------------------------------------------------------
-  # Stage 3: Push to Artifact Registry & Update Helm (Main Branch Only)
-  # -------------------------------------------------------------
+  # =============================================================
+  # STAGE 3: Push to Artifact Registry & Update Helm (Main Branch)
+  # =============================================================
   push-gar-and-update-helm:
     name: 3. GAR Push & Helm Tag Update
-    needs: [build-application, docker-trivy-scan]
+    needs: [scan-frontend, scan-backend]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[skip ci]')
     env:

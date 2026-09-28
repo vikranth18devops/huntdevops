@@ -13,57 +13,73 @@ Before pushing commits to trigger the CI pipeline, ensure:
 
 ---
 
-## 📐 Workflow Architecture & Execution Stages
+## 📐 Multi-Stage Parallel Architecture with Dependency Conditions
+
+The pipeline is structured into independent, parallel stages using `needs` dependency conditions to maximize execution speed and isolate failures:
 
 ```text
-Code Push / Pull Request
-   │
-   ├─────────────────────────────────────────┐
-   ▼                                         ▼
-[ Stage 1: Build Application Code ]   [ Stage 2: Docker Build & Trivy Scan ]
-(Node.js 20, TypeScript compilation)   (Parallel container security check)
-   │                                         │
-   └────────────────────┬────────────────────┘
-                        │ Both Jobs Succeed
-                        v
-          [ Check Branch & Commit Message ]
-                        │
-         ┌──────────────┴──────────────┐
-         │ Not main OR contains        │ main branch & clean commit
-         │ [skip ci]                   │
-         ▼                             ▼
-   Stop Pipeline              [ Stage 3: GAR Push & Helm Tag Update ]
-   (Do Not Publish)            1. Authenticate to GCP via Workload Identity (WIF)
-                               2. Push images with GIT SHA & latest tags
-                               3. Update helm/huntdevops/values.yaml
-                               4. Git commit with [skip ci] tag
+                        ┌───────────────────────────────────────┐
+                        │        Git Push / Pull Request        │
+                        └───────────────────┬───────────────────┘
+                                            │
+                 ┌──────────────────────────┴──────────────────────────┐
+                 ▼                                                     ▼
+     [ 1. Build Frontend ]                                 [ 1. Build Backend ]
+     (React / Vite Build)                                  (TypeScript API Build)
+                 │                                                     │
+                 │ needs: [build-frontend]                             │ needs: [build-backend]
+                 ▼                                                     ▼
+     [ 2. Scan Frontend ]                                  [ 2. Scan Backend ]
+     (Docker build & Trivy)                                (Docker build & Trivy)
+                 │                                                     │
+                 └──────────────────────────┬──────────────────────────┘
+                                            │
+                                            │ needs: [scan-frontend, scan-backend]
+                                            ▼
+                           [ Check Branch & Commit Message ]
+                                            │
+                          ┌─────────────────┴─────────────────┐
+                          │ Not main OR [skip ci]             │ main & 0 CVEs
+                          ▼                                   ▼
+                    Stop Pipeline                   [ 3. Publish & Update ]
+                    (Do Not Publish)                1. WIF Auth to GCP
+                                                    2. Push images with GIT SHA
+                                                    3. Update values.yaml
+                                                    4. Commit with [skip ci]
 ```
 
 ---
 
 ## 🧩 Stage-by-Stage Breakdown
 
-### Stage 1: Application Build (`build-application`)
-* **Purpose**: Verifies that frontend React code and backend TypeScript code compile without syntax or typing errors.
-* **Runner**: `ubuntu-latest` with Node.js 20 caching.
-* **Commands**:
+### Stage 1 (Parallel): Application Code Builds
+* **`build-frontend`**: Runs on `ubuntu-latest`. Installs Node.js 20 dependencies and compiles the React distribution artifacts.
   ```bash
   cd frontend && npm ci && npm run build
+  ```
+* **`build-backend`**: Runs in parallel on `ubuntu-latest`. Compiles TypeScript code to production JavaScript.
+  ```bash
   cd backend && npm ci && npm run build
   ```
 
 ---
 
-### Stage 2: Docker Build & Security Scan (`docker-trivy-scan`)
-* **Purpose**: Compiles Docker images on the runner and executes Trivy security checks in parallel.
-* **Hard Gate**: If Trivy finds any `CRITICAL` or `HIGH` vulnerabilities, the job exits with code `1`, immediately halting the pipeline.
+### Stage 2 (Parallel): Docker Build & Trivy Security Scans
+* **`scan-frontend`** (`needs: [build-frontend]`):
+  - Builds `huntdevops-frontend:${{ github.sha }}`.
+  - Runs Trivy vulnerability scan.
+  - Image is hardened with `apk update && apk upgrade --no-cache` to ensure **0 Critical/High CVEs**.
+* **`scan-backend`** (`needs: [build-backend]`):
+  - Builds `huntdevops-backend:${{ github.sha }}` in parallel.
+  - Runs Trivy vulnerability scan.
+* **Hard Gate**: If either scan fails with an exit code of `1`, Stage 3 is blocked.
 
 ---
 
 ### Stage 3: Artifact Registry Push & Helm Update (`push-gar-and-update-helm`)
 * **Execution Conditions**:
-  1. `needs: [build-application, docker-trivy-scan]` (Requires both Stage 1 and 2 to succeed).
-  2. `if: github.ref == 'refs/heads/main'` (Only executes on `main` branch).
+  1. `needs: [scan-frontend, scan-backend]` (Executes only when both parallel security scans succeed).
+  2. `if: github.ref == 'refs/heads/main'` (Only deploys code merged into `main`).
   3. `!contains(github.event.head_commit.message, '[skip ci]')` (Prevents recursive trigger loops).
 
 * **Authentication via Workload Identity Federation (Keyless)**:
