@@ -228,8 +228,9 @@ jobs:
         run: |
           HELM_VALUES="helm/huntdevops/values.yaml"
           
-          # Update backend and frontend image tags dynamically using sed
-          sed -i 's/tag: .*/tag: "'"${IMAGE_TAG}"'"/g' ${HELM_VALUES}
+          # Update frontend and backend image tags specifically (leaving postgresql intact)
+          sed -i '/^frontend:/,/^backend:/ s/tag: .*/tag: "'"${IMAGE_TAG}"'"/' ${HELM_VALUES}
+          sed -i '/^backend:/,/^postgresql:/ s/tag: .*/tag: "'"${IMAGE_TAG}"'"/' ${HELM_VALUES}
           
           echo "Updated ${HELM_VALUES} with new tag: ${IMAGE_TAG}"
           git diff ${HELM_VALUES}

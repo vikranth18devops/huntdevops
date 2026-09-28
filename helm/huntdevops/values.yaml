@@ -50,7 +50,7 @@ postgresql:
   enabled: true
   image:
     repository: postgres
-    tag: "2a37b2d1b0d387fe0032e9183a825c68ade3f49c"
+    tag: "16-alpine"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
@@ -64,7 +64,7 @@ postgresql:
   persistence:
     enabled: true
     size: 10Gi
-    storageClass: standard-rwd
+    storageClass: standard-rwo
 
 ingress:
   enabled: true
