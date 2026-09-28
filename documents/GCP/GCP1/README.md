@@ -70,8 +70,8 @@ Follow them **in order**. Each phase is self-contained but builds on the previou
 
 | Reference Guide | Description |
 | :--- | :--- |
-| [Comprehensive Troubleshooting Guide](10-troubleshooting.md) | Diagnostic matrix and solutions for 16 real-world error scenarios (WIF, 403 Forbidden, state locks, annotation limits, module loading). |
-| [Live Access URLs & Credentials Guide](11-access-urls-and-credentials.md) | Quick reference for live public URLs, external IPs, default admin credentials, and one-click launch script. |
+| [Comprehensive Troubleshooting Guide](09-troubleshooting.md) | Diagnostic matrix and solutions for 16 real-world error scenarios (WIF, 403 Forbidden, state locks, annotation limits, module loading). |
+| [Live Access URLs & Credentials Guide](10-access-urls-and-credentials.md) | Quick reference for live public URLs, external IPs, default admin credentials, and one-click launch script. |
 
 ---
 

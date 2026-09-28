@@ -120,5 +120,6 @@ gcloud projects add-iam-policy-binding project-e746f24e-392a-429f-a4d \
 
 ## ⏭️ Next Step
 
-Now configure external traffic routing and Load Balancer provisioning:
-👉 **[02 - Ingress & Load Balancer Guide](file:///Users/aarvik/Documents/huntdevops/documents/GCP/GCP1/02-ingress-and-loadbalancer.md)**
+Now configure external traffic routing and Traefik Ingress Controller:
+👉 **[02 - Traefik Ingress Controller & Routing Guide](file:///Users/aarvik/Documents/huntdevops/documents/GCP/GCP1/02-traefik-ingress.md)**
+

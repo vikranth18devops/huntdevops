@@ -220,3 +220,11 @@ cd infra/terraform/gcp && terraform state list
 * **Possible Cause**: Invalid StorageClass specified (e.g. `standard-rwd` instead of GKE's default `standard-rwo`).
 * **How to Fix**: Set `storageClass: standard-rwo` in `helm/huntdevops/values.yaml`. Verify available classes with `kubectl get storageclass`.
 
+---
+
+## ⏭️ Next Step
+
+Proceed to the complete access URLs, credentials, and validation guide:
+👉 **[10 - Live Access URLs & Credentials Guide](file:///Users/aarvik/Documents/huntdevops/documents/GCP/GCP1/10-access-urls-and-credentials.md)**
+
+

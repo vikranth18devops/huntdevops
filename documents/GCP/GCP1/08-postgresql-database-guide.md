@@ -179,3 +179,11 @@ kubectl exec -it -n huntdevops huntdevops-postgres-0 -- \
 | `FATAL: password authentication failed` | Password mismatch between Secret and container | Verify secret key: `kubectl -n huntdevops get secret huntdevops-postgres-secret -o jsonpath="{.data.postgres-password}" \| base64 -d`. |
 | `connection refused` on `huntdevops-postgres:5432` | Pod is not Running or Service selector mismatch | Run `kubectl get pods,svc -n huntdevops -l app.kubernetes.io/component=database`. Verify endpoints with `kubectl get ep huntdevops-postgres -n huntdevops`. |
 | `SSL connection error` in backend | Backend forces SSL on internal unencrypted connection | Set `DB_SSL=false` or configure `ssl: process.env.DB_SSL === 'true'`. In-cluster traffic between pods is encapsulated by GCP VPC. |
+
+---
+
+## ⏭️ Next Steps
+
+- 👉 **[09 - Troubleshooting Guide](file:///Users/aarvik/Documents/huntdevops/documents/GCP/GCP1/09-troubleshooting.md)**: Diagnostic matrix and fixes for common Kubernetes, GCP, and pipeline issues.
+- 👉 **[10 - Live Access URLs & Credentials Guide](file:///Users/aarvik/Documents/huntdevops/documents/GCP/GCP1/10-access-urls-and-credentials.md)**: Live access endpoints, authentication tokens, and quick startup scripts.
+
