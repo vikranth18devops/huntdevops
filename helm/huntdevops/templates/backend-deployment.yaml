@@ -26,13 +26,13 @@ spec:
             - configMapRef:
                 name: huntdevops-config
           env:
-            - name: DATABASE_URL
-              value: "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)"
             - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.postgresql.auth.passwordSecretName }}
                   key: {{ .Values.postgresql.auth.passwordSecretKey }}
+            - name: DATABASE_URL
+              value: "postgresql://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)"
           resources:
             {{- toYaml .Values.backend.resources | nindent 12 }}
           readinessProbe:

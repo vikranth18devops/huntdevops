@@ -6,15 +6,34 @@ dotenv.config();
 const { Pool } = pg;
 
 // PostgreSQL Database Pool setup
-const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/huntdevops';
+const host = process.env.DB_HOST || 'localhost';
+const port = parseInt(process.env.DB_PORT || '5432', 10);
+const user = process.env.DB_USER || 'postgres';
+const password = process.env.DB_PASSWORD || 'postgres';
+const database = process.env.DB_NAME || 'huntdevops';
+const ssl = process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false;
 
-export const pool = new Pool({
-  connectionString,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
-});
+export const pool = new Pool(
+  process.env.DATABASE_URL && !process.env.DB_HOST
+    ? {
+        connectionString: process.env.DATABASE_URL,
+        ssl,
+        max: 20,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 5000,
+      }
+    : {
+        host,
+        port,
+        user,
+        password,
+        database,
+        ssl,
+        max: 20,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 5000,
+      }
+);
 
 let isPostgresAvailable = false;
 
@@ -89,8 +108,8 @@ export async function initDatabase() {
 
     client.release();
     console.log('✅ PostgreSQL Schema tables & indexes verified.');
-  } catch (error) {
-    console.warn('⚠️ PostgreSQL database connection pending. Backend operating with memory/client sync fallbacks.');
+  } catch (error: any) {
+    console.warn(`⚠️ PostgreSQL connection note: ${error?.message || error}. Operating with fallback mode.`);
     isPostgresAvailable = false;
   }
 }

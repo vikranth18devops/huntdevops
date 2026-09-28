@@ -178,3 +178,45 @@ cd infra/terraform/gcp && terraform state list
      ```bash
      terraform force-unlock <LOCK_ID>
      ```
+
+---
+
+### Issue 13: Argo CD CRD Annotation Size Limit (`metadata.annotations: Too long`)
+* **Problem**: `The CustomResourceDefinition "applicationsets.argoproj.io" is invalid: metadata.annotations: Too long: may not be more than 262144 bytes`.
+* **Possible Cause**: Client-side `kubectl apply` stores the entire manifest in the `kubectl.kubernetes.io/last-applied-configuration` annotation, exceeding the 256KB Kubernetes annotation limit.
+* **How to Fix**: Use server-side apply with force conflicts:
+  ```bash
+  kubectl apply --server-side --force-conflicts -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+  ```
+
+---
+
+### Issue 14: GKE Pod ErrImagePull / 403 Forbidden from Artifact Registry
+* **Problem**: Pods remain in `ImagePullBackOff` or `ErrImagePull` with event: `failed to authorize: failed to fetch oauth token: unexpected status 403 Forbidden`.
+* **Possible Cause**: The GKE node Compute Engine default service account lacks read permissions on Artifact Registry.
+* **How to Fix**: Grant `roles/artifactregistry.reader` to the compute service account:
+  ```bash
+  PROJECT_NUM=$(gcloud projects describe project-e746f24e-392a-429f-a4d --format="value(projectNumber)")
+  
+  gcloud projects add-iam-policy-binding project-e746f24e-392a-429f-a4d \
+    --member="serviceAccount:${PROJECT_NUM}-compute@developer.gserviceaccount.com" \
+    --role="roles/artifactregistry.reader"
+  
+  # Restart the affected pods
+  kubectl delete pods -n huntdevops --all
+  ```
+
+---
+
+### Issue 15: Node CommonJS Runtime Error in Docker Container
+* **Problem**: Backend pod crashes with `ReferenceError: exports is not defined in ES module scope`.
+* **Possible Cause**: `tsconfig.json` compiles TypeScript to CommonJS, but `package.json` specifies `"type": "module"`, causing Node.js to treat `.js` files as ES modules.
+* **How to Fix**: Remove `"type": "module"` from `backend/package.json` so Node treats compiled `.js` files as CommonJS.
+
+---
+
+### Issue 16: PostgreSQL PVC Stuck in Pending on GKE
+* **Problem**: PostgreSQL pod stays in `ContainerCreating` or `Pending` with unbound PersistentVolumeClaim.
+* **Possible Cause**: Invalid StorageClass specified (e.g. `standard-rwd` instead of GKE's default `standard-rwo`).
+* **How to Fix**: Set `storageClass: standard-rwo` in `helm/huntdevops/values.yaml`. Verify available classes with `kubectl get storageclass`.
+
