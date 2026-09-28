@@ -1,121 +1,81 @@
-# HuntDevOps: End-to-End GCP, GKE, CI/CD, Helm & GitOps Guide (GCP1)
+# Deploying HuntDevOps to GCP GKE — End-to-End Guide
 
-Welcome to the **HuntDevOps GCP Architecture & GitOps Implementation Guide**. This document suite serves as the complete, production-grade guide for establishing an automated, secure CI/CD and GitOps deployment pipeline on **Google Cloud Platform (GCP)** using **Google Kubernetes Engine (GKE)**, **Artifact Registry**, **Trivy**, **Helm**, **Terraform**, and **Argo CD**.
+A complete, **beginner-friendly**, hands-on guide that takes you from an empty Google Cloud Platform (GCP) project to **HuntDevOps running on Google Kubernetes Engine (GKE) with GitOps, CI/CD, and a live persistent PostgreSQL database**.
 
-> [!NOTE]
-> This documentation suite is specifically structured for **freshers and beginners**. Every guide includes **prerequisites**, step-by-step copy-paste CLI commands, expected outputs, architecture diagrams, and real-world troubleshooting scenarios.
+🎯 **Audience:** Freshers / 1–2 years experienced DevOps engineers.  
+🪜 **Style:** Every command explained, every gotcha documented. No "just trust me" steps.
 
 ---
 
-## 🛠️ Technology Stack & Architecture
+## 🌐 Where You'll End Up
 
 ```text
-                                +-------------------------------------------------------+
-                                |                    GitHub Repository                  |
-                                |            (vikranth18devops/huntdevops)              |
-                                +-------------------------------------------------------+
-                                                            |
-                                                            | Push to main
-                                                            v
-                                +-------------------------------------------------------+
-                                |               GitHub Actions CI Pipeline              |
-                                |                                                       |
-                                |  1. Build React Frontend & Node Backend               |
-                                |  2. Build Docker Container Images                     |
-                                |  3. Run Trivy Container Security Scan                 |
-                                |     (Fails pipeline if Critical/High vulnerabilities) |
-                                +-------------------------------------------------------+
-                                                            |
-                                           Clean Security Scan Pass (0 CVEs)
-                                                            |
-                                                            v
-                                +-------------------------------------------------------+
-                                |               GCP Artifact Registry (GAR)             |
-                                |      us-central1-docker.pkg.dev/.../huntdevops        |
-                                +-------------------------------------------------------+
-                                                            |
-                                                            | Auto-update helm/huntdevops/values.yaml
-                                                            v
-                                +-------------------------------------------------------+
-                                |                 Argo CD (GitOps Controller)           |
-                                |      Monitors Git Repo -> Detects Tag Update          |
-                                +-------------------------------------------------------+
-                                                            |
-                                                            | Auto-Sync / Helm Deploy
-                                                            v
-                                +-------------------------------------------------------+
-                                |             Google Kubernetes Engine (GKE)            |
-                                |                                                       |
-                                |   [ Frontend Pods ]  [ Backend Pods ]  [ PostgreSQL ] |
-                                +-------------------------------------------------------+
+        🌐  http://136.116.192.196               <- Live Frontend Application UI
+        🌐  http://136.116.192.196/api/health    <- Live Express Backend REST API
+        🌐  https://136.112.167.2                <- Live Argo CD GitOps Dashboard
+                               │
+                               ▼
+               ┌───────────────────────────────┐
+               │   GCP TCP Network LoadBalancer│ (Single dedicated static public IP)
+               └───────────────┬───────────────┘
+                               ▼
+         ┌───────────────────────────────────────────┐
+         │        GKE Cluster (us-central1-a)        │
+         │                                           │
+         │   huntdevops namespace                    │
+         │   ├── huntdevops-frontend (2 replicas, 80)│
+         │   │   └── Nginx reverse proxy /api/       │
+         │   ├── huntdevops-backend  (2 replicas, 4000)
+         │   └── huntdevops-postgres (StatefulSet)   │
+         │       └── 10Gi standard-rwo PersistentDisk│
+         │                                           │
+         │   argocd namespace                        │
+         │   └── Argo CD Server, Controller, Redis   │
+         │                                           │
+         │   cert-manager namespace (TLS automation) │
+         └─────────────────────┬─────────────────────┘
+                               ▲
+                               │ GitOps sync
+                  ┌────────────┴─────────────┐
+                  │ GitHub Repo (huntdevops) │
+                  │  CI builds & scans →     │
+                  │  Artifact Registry +     │
+                  │  bumps values.yaml       │
+                  └──────────────────────────┘
 ```
 
 ---
 
-## 🚦 Recommended Execution Flow (Step-by-Step)
+## 🚦 The Phases
 
-To provision and run this complete infrastructure without encountering errors, execute the guides in this order:
+Follow them **in order**. Each phase is self-contained but builds on the previous one.
 
-```text
-Step 01: Prerequisites & Tooling (GCP APIs, Workload Identity Federation & GitHub Secrets)
-   │
-   ▼
-Step 08: Terraform Infrastructure (Creates GCS Remote State, VPC, GKE in us-central1-a, Artifact Registry, IAM)
-   │
-   ▼
-Step 02: GCP Artifact Registry & Docker Authentication (Connects local Docker to us-central1-docker.pkg.dev)
-   │
-   ▼
-Step 03: Docker Multi-Stage Containerization (Builds & verifies Frontend & Backend images locally)
-   │
-   ▼
-Step 04: Trivy Security Scanning (Enforces hard security gate: 0 Critical / High CVEs)
-   │
-   ▼
-Step 05: GitHub Actions CI Pipeline (Automated testing, keyless WIF authentication, GAR push & Helm tagging)
-   │
-   ▼
-Step 06: Helm Chart Architecture (Templates, values.yaml, resource manifests)
-   │
-   ▼
-Step 07: Argo CD GitOps Setup (Deploys Argo CD on GKE, connects to GitHub repo, auto-syncs)
-   │
-   ▼
-Step 09: End-to-End Walkthrough (Complete developer journey from code commit to live GKE pods)
-   │
-   ▼
-Step 10: Troubleshooting & Recovery (Comprehensive diagnostic matrix for all 16 common error scenarios)
-   │
-   ▼
-Step 11: Access URLs & Credentials (Live URLs, port-forwards, API endpoints, and admin passwords)
-```
+| # | Phase | Goal | Time | What Gets Created |
+| :---: | :--- | :--- | :---: | :--- |
+| **1** | [Infra & Cluster Setup](01-infra-and-jump-vm.md) | Provision VPC, GKE, and Artifact Registry via Terraform | ~20 min | Custom VPC, Subnets, Cloud NAT, zonal GKE cluster (`us-central1-a`), Artifact Registry repo |
+| **2** | [Ingress & Load Balancer](02-ingress-and-loadbalancer.md) | Expose the app to the internet via GCP Load Balancer | ~5 min | Google Cloud Network Load Balancer, Public IP `136.116.192.196`, Nginx reverse proxy |
+| **3** | [GitHub Actions CI](03-github-actions-cicd.md) | Build images, Trivy scan (0 CVEs), WIF push to GAR & bump values.yaml | ~15 min | Keyless CI pipeline, hardened Docker containers, automated tag updates with `[skip ci]` |
+| **4** | [Argo CD Deploy](04-argocd-deploy.md) | Declarative GitOps deployment on GKE with auto-sync | ~15 min | Argo CD controller, AppProject, Application, `huntdevops` namespace, multi-tier rollout |
+| **5** | [DNS & GoDaddy](05-dns-and-godaddy.md) | Map custom domain to the application | ~15 min | GoDaddy DNS A records, apex & subdomain routing, propagation verification |
+| **6** | [Monitoring & Logging](06-monitoring-and-logging.md) | Centralized metrics, Cloud Logging, Prometheus & Grafana | ~20 min | Google Cloud Logging, Cloud Monitoring, Prometheus, Grafana dashboards |
+| **7** | [HTTPS & Let's Encrypt](07-https-letsencrypt-and-routes.md) | Free SSL/TLS certificates via cert-manager | ~15 min | cert-manager operator, ClusterIssuer, automated 90-day TLS certificates |
+| **8** | [PostgreSQL Database Guide](08-postgresql-database-guide.md) | Query tables, run ad-hoc SQL, backups & restore | Post-deploy | StatefulSet persistence, table schemas, `psql` queries, backup procedures |
 
 ---
 
-## 📂 Documentation Navigation Index
+## 🛠️ Companion References & Diagnostic Guides
 
-Below is the complete index of guides under `documents/GCP/GCP1/`:
-
-| File | Module Title | Description |
-| :--- | :--- | :--- |
-| [`01-prerequisites.md`](file:///Users/aarvik/Documents/huntdevops/documents/GCP/GCP1/01-prerequisites.md) | **Prerequisites & Tooling** | Installation, verification, GCP project setup, API enablement, Workload Identity Federation (WIF), and GitHub repository secrets. |
-| [`02-gcp-artifact-registry.md`](file:///Users/aarvik/Documents/huntdevops/documents/GCP/GCP1/02-gcp-artifact-registry.md) | **GCP Artifact Registry** | Dual provisioning (Terraform vs gcloud), Docker daemon auth, URL conventions, IAM writer permissions, and package inspection. |
-| [`03-docker-setup.md`](file:///Users/aarvik/Documents/huntdevops/documents/GCP/GCP1/03-docker-setup.md) | **Docker Containerization** | Multi-stage Dockerfiles for React frontend (NGINX) and Node/Express backend, build optimizations (95% size reduction), and local health checks. |
-| [`04-trivy-setup.md`](file:///Users/aarvik/Documents/huntdevops/documents/GCP/GCP1/04-trivy-setup.md) | **Trivy Vulnerability Scan** | Security gate policies (`CRITICAL,HIGH`), exit codes (`--exit-code 1`), local CLI testing, filesystem scans, and CI automation. |
-| [`05-ci-pipeline.md`](file:///Users/aarvik/Documents/huntdevops/documents/GCP/GCP1/05-ci-pipeline.md) | **GitHub Actions CI Pipeline** | Multi-stage workflow (`.github/workflows/ci.yml`), parallel execution, keyless WIF authentication, immutable tag publishing, and `[skip ci]` loop prevention. |
-| [`06-helm-setup.md`](file:///Users/aarvik/Documents/huntdevops/documents/GCP/GCP1/06-helm-setup.md) | **Helm Chart Architecture** | Chart directory structure (`helm/huntdevops`), parameter values, Kubernetes manifests (Frontend, Backend, PostgreSQL), linting, and dry-run testing. |
-| [`07-argo-cd-setup.md`](file:///Users/aarvik/Documents/huntdevops/documents/GCP/GCP1/07-argo-cd-setup.md) | **Argo CD GitOps Setup** | Argo CD architecture on GKE, declarative `Application` & `AppProject` CRDs, automated reconciliation, and UI credential access. |
-| [`08-terraform-gke-setup.md`](file:///Users/aarvik/Documents/huntdevops/documents/GCP/GCP1/08-terraform-gke-setup.md) | **Terraform Modular Infrastructure** | Modular IaaC (`vpc`, `gke`, `artifact_registry`, `iam`), GCS remote state backend with versioning, zonal placement (`us-central1-a`), and `terraform import` steps. |
-| [`09-end-to-end-flow.md`](file:///Users/aarvik/Documents/huntdevops/documents/GCP/GCP1/09-end-to-end-flow.md) | **End-to-End Walkthrough** | Complete developer journey from local code change to live GKE pod update, detailing every transition step and trigger. |
-| [`10-troubleshooting.md`](file:///Users/aarvik/Documents/huntdevops/documents/GCP/GCP1/10-troubleshooting.md) | **Comprehensive Troubleshooting** | Diagnostic triage and solutions for all 16 common error scenarios (WIF, 409 conflicts, state locks, GCE stockouts, ImagePullBackOff, CrashLoopBackOff). |
-| [`11-access-urls-and-credentials.md`](file:///Users/aarvik/Documents/huntdevops/documents/GCP/GCP1/11-access-urls-and-credentials.md) | **Access URLs & Credentials** | Direct access URLs, port-forwarding commands, REST API endpoints, database credentials, and one-command multi-service launch script. |
+| Reference Guide | Description |
+| :--- | :--- |
+| [Comprehensive Troubleshooting Guide](10-troubleshooting.md) | Diagnostic matrix and solutions for 16 real-world error scenarios (WIF, 403 Forbidden, state locks, annotation limits, module loading). |
+| [Live Access URLs & Credentials Guide](11-access-urls-and-credentials.md) | Quick reference for live public URLs, external IPs, default admin credentials, and one-click launch script. |
 
 ---
 
-## 🚀 Key Implementation & Architecture Principles
+## 🔑 Key Architecture & Production Principles
 
 1. **Strict Naming Compliance**: The project name is **`huntdevops`**. All resources, directories, images, charts, and documentation strictly use `huntdevops`.
-2. **Keyless Security (WIF)**: Uses **Workload Identity Federation** for GitHub Actions CI/CD to eliminate static downloadable `.json` service account private keys and comply with GCP organization policies.
+2. **Keyless Security (WIF)**: Uses **Workload Identity Federation** for GitHub Actions CI/CD to eliminate static downloadable `.json` service account private keys and comply with GCP organization security policies.
 3. **Remote State with Versioning**: Terraform state is stored securely in Google Cloud Storage (`gs://huntdevops-tfstate-project-e746f24e-392a-429f-a4d`) with object versioning and state locking enabled.
 4. **Zonal Resilience & Free Control Plane**: GKE is provisioned in `us-central1-a` to eliminate multi-zone regional capacity stockouts (`GCE_STOCKOUT`) and take advantage of GCP's free zonal control plane.
 5. **GKE Unified Runtime**: The complete multi-tier architecture—Frontend React Client, Backend Express API, and PostgreSQL Database—is deployed exclusively on **Google Kubernetes Engine (GKE)**.
