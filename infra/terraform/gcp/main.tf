@@ -6,6 +6,11 @@ terraform {
       version = "~> 5.0"
     }
   }
+
+  backend "gcs" {
+    bucket = "huntdevops-tfstate-project-e746f24e-392a-429f-a4d"
+    prefix = "terraform/state"
+  }
 }
 
 provider "google" {
