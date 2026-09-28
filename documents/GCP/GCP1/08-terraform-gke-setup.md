@@ -74,3 +74,60 @@ After provisioning completes, connect your local `kubectl` to the new GKE cluste
 ```bash
 gcloud container clusters get-credentials prod-huntdevops-gke --zone us-central1-a --project project-e746f24e-392a-429f-a4d
 ```
+
+---
+
+## 🗄️ Remote State Management (Google Cloud Storage)
+
+For team collaboration, state locking, and disaster recovery, Terraform state is stored remotely in Google Cloud Storage:
+
+### 1. GCS State Bucket Configuration
+* **Bucket**: `gs://huntdevops-tfstate-project-e746f24e-392a-429f-a4d`
+* **Location**: `us-central1`
+* **Object Versioning**: **Enabled** (protects against corruption and tracks state history).
+
+### 2. Backend Block Configuration (`main.tf`)
+```hcl
+terraform {
+  required_version = ">= 1.5.0"
+  required_providers {
+    google = {
+      source  = "hashicorp/google"
+      version = "~> 5.0"
+    }
+  }
+
+  backend "gcs" {
+    bucket = "huntdevops-tfstate-project-e746f24e-392a-429f-a4d"
+    prefix = "terraform/state"
+  }
+}
+```
+
+### 3. Migrating Local State to GCS Backend
+To migrate existing local `terraform.tfstate` into the remote bucket:
+```bash
+terraform init -migrate-state
+```
+Type `yes` when prompted to copy existing state to the new backend.
+
+---
+
+## 🔧 Troubleshooting & Known Tips
+
+### 1. Resolving `Error 409: Already Exists`
+If resources like Artifact Registry or Service Accounts were created outside Terraform (e.g. via `gcloud`), import them into Terraform state:
+```bash
+# Import Artifact Registry
+terraform import -var-file="terraform.tfvars.example" \
+  module.artifact_registry.google_artifact_registry_repository.repo \
+  projects/project-e746f24e-392a-429f-a4d/locations/us-central1/repositories/huntdevops-repo
+
+# Import CI/CD Service Account
+terraform import -var-file="terraform.tfvars.example" \
+  module.iam.google_service_account.cicd_sa \
+  projects/project-e746f24e-392a-429f-a4d/serviceAccounts/huntdevops-cicd-sa@project-e746f24e-392a-429f-a4d.iam.gserviceaccount.com
+```
+
+### 2. Resolving GCE Stockout (`GCE_STOCKOUT`)
+If GCP reports insufficient resources in regional clusters across all zones in `us-central1`, deploy as a zonal cluster using `zone = "us-central1-a"`. Zonal clusters also provide a free control plane in GCP.
