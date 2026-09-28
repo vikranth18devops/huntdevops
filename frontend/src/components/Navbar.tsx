@@ -2,7 +2,6 @@ import React from 'react';
 import { 
   CheckSquare, 
   ShieldAlert, 
-  ShieldCheck,
   BarChart3, 
   User as UserIcon, 
   Search,
@@ -22,7 +21,7 @@ interface NavbarProps {
   onOpenProfile: () => void;
   onOpenDashboard: () => void;
   onOpenAchievements: () => void;
-  onOpenAdmin: () => void;
+  onOpenAdmin?: () => void;
   completedCount: number;
   totalCount: number;
   isSidebarOpen: boolean;
@@ -40,7 +39,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenProfile,
   onOpenDashboard,
   onOpenAchievements,
-  onOpenAdmin,
   isSidebarOpen,
   setIsSidebarOpen,
   streakCount = 1
@@ -141,16 +139,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <BarChart3 className="h-5 w-5 text-indigo-600 shrink-0" />
               <span className="hidden sm:inline">Stats</span>
-            </button>
-
-            {/* Admin Portal Button */}
-            <button
-              onClick={onOpenAdmin}
-              title="Super Admin Portal (/admin)"
-              className="flex items-center gap-1.5 px-3 py-2 rounded-2xl border border-purple-200 bg-purple-50 text-purple-700 text-xs font-bold hover:bg-purple-100 transition-all shadow-sm"
-            >
-              <ShieldCheck className="h-5 w-5 text-purple-600 shrink-0" />
-              <span className="hidden sm:inline">Admin</span>
             </button>
 
             {/* User Account / Login Button */}

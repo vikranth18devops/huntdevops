@@ -60,7 +60,7 @@ export const LearningSheet: React.FC<LearningSheetProps> = ({
   // Sub-Module Step Index
   const [currentSectionIndex, setCurrentSectionIndex] = useState<number>(0);
 
-  // Question Pagination Page Index (2 Questions per Page)
+  // Question Pagination Page Index (3 Questions per Page)
   const [questionPageIndex, setQuestionPageIndex] = useState<number>(0);
   
   // User Selected Option State per item ID
@@ -137,8 +137,8 @@ export const LearningSheet: React.FC<LearningSheetProps> = ({
   const activeSectionCompleted = activeSectionItems.filter(item => completedIds.has(item.id)).length;
   const activeSectionProgress = Math.round((activeSectionCompleted / (activeSectionItems.length || 1)) * 100);
 
-  // EXACTLY 2 QUESTIONS PER PAGE
-  const QUESTIONS_PER_PAGE = 2;
+  // EXACTLY 3 QUESTIONS PER PAGE
+  const QUESTIONS_PER_PAGE = 3;
   const totalQuestionPages = Math.max(1, Math.ceil(activeSectionItems.length / QUESTIONS_PER_PAGE));
   const currentPageQuestions = activeSectionItems.slice(
     questionPageIndex * QUESTIONS_PER_PAGE,
@@ -696,7 +696,7 @@ export const LearningSheet: React.FC<LearningSheetProps> = ({
               </div>
             </div>
 
-            {/* ACTIVE SUB-MODULE 2 QUESTIONS PER PAGE VIEW */}
+            {/* ACTIVE SUB-MODULE 3 QUESTIONS PER PAGE VIEW */}
             {activeSection && (
               <div className="space-y-4">
                 
@@ -710,7 +710,7 @@ export const LearningSheet: React.FC<LearningSheetProps> = ({
                       Questions Page {questionPageIndex + 1} of {totalQuestionPages}
                     </h3>
                     <div className="text-[11px] text-slate-600">
-                      Showing questions {questionPageIndex * 2 + 1} - {Math.min((questionPageIndex + 1) * 2, activeSectionItems.length)} of {activeSectionItems.length}
+                      Showing questions {questionPageIndex * QUESTIONS_PER_PAGE + 1} - {Math.min((questionPageIndex + 1) * QUESTIONS_PER_PAGE, activeSectionItems.length)} of {activeSectionItems.length}
                     </div>
                   </div>
 
@@ -722,10 +722,10 @@ export const LearningSheet: React.FC<LearningSheetProps> = ({
                   </div>
                 </div>
 
-                {/* RENDER EXACTLY 2 QUESTIONS PER PAGE */}
+                {/* RENDER EXACTLY 3 QUESTIONS PER PAGE */}
                 <div className="space-y-4">
                   {currentPageQuestions.map((item, qOffset) => {
-                    const globalQNum = questionPageIndex * 2 + qOffset + 1;
+                    const globalQNum = questionPageIndex * QUESTIONS_PER_PAGE + qOffset + 1;
                     const isCompleted = completedIds.has(item.id);
                     const selectedChoiceId = selectedAnswers[item.id] || null;
                     const choices = generateChoicesForItem(item, activeSectionItems);

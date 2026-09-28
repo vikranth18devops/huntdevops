@@ -163,6 +163,29 @@ export function renderUserStreakBadge(streakCount: number) {
 }
 
 export function parseCSVRows(text: string): string[][] {
+  if (!text) return [];
+  // Strip UTF-8 BOM if present
+  text = text.replace(/^\uFEFF/, '');
+
+  // Detect delimiter (, or ; or \t)
+  const firstLine = text.split(/\r?\n/).find(l => l.trim().length > 0) || '';
+  let commaCount = 0;
+  let semiCount = 0;
+  let tabCount = 0;
+  let inQ = false;
+  for (let i = 0; i < firstLine.length; i++) {
+    const c = firstLine[i];
+    if (c === '"') inQ = !inQ;
+    else if (!inQ) {
+      if (c === ',') commaCount++;
+      else if (c === ';') semiCount++;
+      else if (c === '\t') tabCount++;
+    }
+  }
+  let delimiter = ',';
+  if (semiCount > commaCount && semiCount > tabCount) delimiter = ';';
+  else if (tabCount > commaCount && tabCount > semiCount) delimiter = '\t';
+
   const result: string[][] = [];
   let row: string[] = [];
   let field = '';
@@ -186,7 +209,7 @@ export function parseCSVRows(text: string): string[][] {
     } else {
       if (c === '"') {
         inQuotes = true;
-      } else if (c === ',') {
+      } else if (c === delimiter) {
         row.push(field);
         field = '';
       } else if (c === '\r') {
@@ -213,7 +236,7 @@ export function parseCSVRows(text: string): string[][] {
     result.push(row);
   }
 
-  return result.filter(r => r.some(cell => cell.trim().length > 0));
+  return result.filter(r => r.some(cell => (cell || '').trim().length > 0));
 }
 
 export interface ImportAuditRecord {
@@ -475,6 +498,25 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [selectedModuleIds, setSelectedModuleIds] = useState<string[]>([]);
   const [selectedSubModuleIds, setSelectedSubModuleIds] = useState<string[]>([]);
   const [selectedQuestionItemIds, setSelectedQuestionItemIds] = useState<string[]>([]);
+
+  // Module search and CSV Drag & Drop state
+  const [searchTopicQuery, setSearchTopicQuery] = useState('');
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isDraggingCSV, setIsDraggingCSV] = useState(false);
+
+  // Filter modules/topics in CMS by real-time search query
+  const displayedTopics = useMemo(() => {
+    return topics.filter(t => {
+      if (!searchTopicQuery.trim()) return true;
+      const q = searchTopicQuery.toLowerCase().trim();
+      return (
+        t.title.toLowerCase().includes(q) ||
+        t.id.toLowerCase().includes(q) ||
+        (t.subtitle && t.subtitle.toLowerCase().includes(q)) ||
+        (t.sections && t.sections.some(s => s.title.toLowerCase().includes(q) || s.id.toLowerCase().includes(q)))
+      );
+    });
+  }, [topics, searchTopicQuery]);
 
   // CSV Import Progress Modal State
   const [importProgressModal, setImportProgressModal] = useState<{
@@ -993,15 +1035,26 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   };
 
   const handleToggleTopicDisabled = (topicId: string, title: string) => {
+    let newlyEnabled: Topic | null = null;
     const updated = topics.map(t => {
       if (t.id === topicId) {
         const nextState = !t.disabled;
-        showToast(`Module "${title}" is now ${nextState ? 'DISABLED' : 'ENABLED'} in Learner UI.`);
-        return { ...t, disabled: nextState };
+        const modified = { ...t, disabled: nextState };
+        if (!nextState) {
+          newlyEnabled = modified;
+        }
+        showToast(`Module "${title}" is now ${nextState ? 'DISABLED' : 'ENABLED'} and prioritized to the top order.`);
+        return modified;
       }
       return t;
     });
-    onUpdateTopics(updated);
+
+    let reordered = updated;
+    if (newlyEnabled) {
+      reordered = [newlyEnabled, ...updated.filter(t => t.id !== topicId)];
+      setSelectedTopicId((newlyEnabled as Topic).id);
+    }
+    onUpdateTopics(reordered);
   };
 
   const handleToggleSectionDisabled = (sectionId: string, title: string) => {
@@ -1364,15 +1417,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     showToast('Downloaded LP-Lab questions CSV template!');
   };
 
-  const handleImportQuestionsCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const processCSVFile = (file: File) => {
     if (!file) return;
 
     const reader = new FileReader();
     reader.onload = (evt) => {
       try {
-        const csvText = evt.target?.result as string;
-        if (!csvText) return;
+        let csvText = evt.target?.result as string;
+        if (!csvText) {
+          alert('Selected file is empty.');
+          return;
+        }
 
         const parsedRows = parseCSVRows(csvText);
         if (parsedRows.length <= 1) {
@@ -1380,44 +1435,60 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           return;
         }
 
-        const header = parsedRows[0].map(h => h.trim().toLowerCase().replace(/[^a-z0-9_]/g, ''));
-        
-        const getColIdx = (name: string, fallback: number) => {
-          const found = header.findIndex(h => h.includes(name.toLowerCase()));
-          return found >= 0 ? found : fallback;
+        // Clean headers: lower-cased alphanumeric
+        const normHeaders = parsedRows[0].map(h => (h || '').trim().toLowerCase().replace(/[^a-z0-9]/g, ''));
+
+        const findCol = (predicate: (h: string) => boolean, fallback: number) => {
+          const idx = normHeaders.findIndex(predicate);
+          return idx >= 0 ? idx : fallback;
         };
 
-        const modIdIdx = getColIdx('module_id', 0);
-        const modTitleIdx = getColIdx('module_title', 1);
-        const subIdIdx = getColIdx('submodule_id', 2);
-        const subTitleIdx = getColIdx('submodule_title', 3);
-        const qLabelIdx = getColIdx('question_label', 4);
-        const optAIdx = getColIdx('option_a', 5);
-        const optBIdx = getColIdx('option_b', 6);
-        const optCIdx = getColIdx('option_c', 7);
-        const optDIdx = getColIdx('option_d', 8);
-        const correctIdx = getColIdx('correct', 9);
-        const cmdIdx = getColIdx('command', 10);
-        const whyIdx = getColIdx('why', 11);
-        const levelIdx = getColIdx('devops', getColIdx('experience', getColIdx('level', 12)));
+        const modIdIdx = findCol(h => h.includes('moduleid') || h.includes('topicid'), -1);
+        const modTitleIdx = findCol(h => h.includes('moduletitle') || h.includes('modulename') || (!h.includes('id') && (h.includes('module') || h.includes('topic'))), 0);
+        const effectiveModIdIdx = modIdIdx >= 0 ? modIdIdx : modTitleIdx;
+
+        const subIdIdx = findCol(h => h.includes('submoduleid') || h.includes('sectionid'), -1);
+        const subTitleIdx = findCol(h => h.includes('submoduletitle') || h.includes('submodulename') || (!h.includes('id') && (h.includes('submodule') || h.includes('section'))), 1);
+        const effectiveSubIdIdx = subIdIdx >= 0 ? subIdIdx : subTitleIdx;
+
+        const qLabelIdx = findCol(h => h.includes('question') || h.includes('label') || h.includes('prompt') || h.includes('problem'), 2);
+        const optAIdx = findCol(h => h === 'optiona' || h === 'opta' || h === 'option1' || h === 'choicea' || h.includes('optiona'), 3);
+        const optBIdx = findCol(h => h === 'optionb' || h === 'optb' || h === 'option2' || h === 'choiceb' || h.includes('optionb'), 4);
+        const optCIdx = findCol(h => h === 'optionc' || h === 'optc' || h === 'option3' || h === 'choicec' || h.includes('optionc'), 5);
+        const optDIdx = findCol(h => h === 'optiond' || h === 'optd' || h === 'option4' || h === 'choiced' || h.includes('optiond'), 6);
+        const correctIdx = findCol(h => h.includes('correct') || h.includes('answer') || h.includes('key'), 7);
+        const cmdIdx = findCol(h => h.includes('command') || h.includes('syntax') || h.includes('cmd') || h.includes('code'), 8);
+        const whyIdx = findCol(h => h.includes('why') || h.includes('explanation') || h.includes('desc') || h.includes('rationale'), 9);
+        const levelIdx = findCol(h => h.includes('level') || h.includes('difficulty') || h.includes('experience'), 10);
 
         // Pre-calculate sub-modules present in CSV
-        const subMap = new Map<string, { moduleTitle: string; subId: string; subTitle: string; count: number }>();
+        const subMap = new Map<string, { moduleTitle: string; subId: string; subTitle: string; topicId: string; sectionId: string; count: number }>();
+        
         for (let i = 1; i < parsedRows.length; i++) {
           const row = parsedRows[i];
-          if (!row || row.length < 3) continue;
+          if (!row || row.length < 2) continue;
 
-          const rawModId = (row[modIdIdx] || '').trim();
+          const rawModId = (row[effectiveModIdIdx] || '').trim();
           const rawModTitle = (row[modTitleIdx] || rawModId || 'Custom Module').trim();
-          const rawSubId = (row[subIdIdx] || '').trim();
+          const rawSubId = (row[effectiveSubIdIdx] || '').trim();
           const rawSubTitle = (row[subTitleIdx] || rawSubId || 'General Sub-Module').trim();
           const qLabel = (row[qLabelIdx] || '').trim();
 
           if (!qLabel) continue;
 
-          const key = `${rawModTitle}___${rawSubId || rawSubTitle}`;
+          const topicId = (rawModId || rawModTitle || 'custom-module').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'custom-module';
+          const sectionId = (rawSubId || rawSubTitle || 'general').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'general';
+
+          const key = `${topicId}___${sectionId}`;
           if (!subMap.has(key)) {
-            subMap.set(key, { moduleTitle: rawModTitle, subId: rawSubId, subTitle: rawSubTitle, count: 0 });
+            subMap.set(key, { 
+              moduleTitle: rawModTitle, 
+              subId: rawSubId || sectionId, 
+              subTitle: rawSubTitle, 
+              topicId, 
+              sectionId, 
+              count: 0 
+            });
           }
           subMap.get(key)!.count++;
         }
@@ -1427,21 +1498,23 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         // Track which sub-modules existed prior to this import
         const existingSubModuleSet = new Set<string>();
         topicsCopy.forEach(t => {
-          t.sections.forEach(s => {
+          (t.sections || []).forEach(s => {
             existingSubModuleSet.add(`${t.id}___${s.id}`);
             existingSubModuleSet.add(`${t.title.toLowerCase()}___${s.title.toLowerCase()}`);
           });
         });
 
-        const initialSubStats = Array.from(subMap.values()).map(s => {
-          const subKey = `${(s.subId || s.subTitle).toLowerCase().replace(/\s+/g, '-')}`;
-          const isNew = !existingSubModuleSet.has(`${s.moduleTitle.toLowerCase().replace(/\s+/g, '-')}___${subKey}`) &&
+        const initialSubStats = Array.from(subMap.entries()).map(([subKey, s]) => {
+          const isNew = !existingSubModuleSet.has(subKey) &&
                         !existingSubModuleSet.has(`${s.moduleTitle.toLowerCase()}___${s.subTitle.toLowerCase()}`);
 
           return {
+            subKey,
             moduleTitle: s.moduleTitle,
             subModuleId: s.subId,
             subModuleTitle: s.subTitle,
+            topicId: s.topicId,
+            sectionId: s.sectionId,
             addedCount: 0,
             skippedDuplicatesCount: 0,
             totalInCSV: s.count,
@@ -1453,7 +1526,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         const totalValidRows = initialSubStats.reduce((acc, s) => acc + s.totalInCSV, 0);
 
         if (totalValidRows === 0) {
-          alert('No valid question rows found in the CSV file.');
+          alert('No valid question rows found in the CSV file. Please make sure the Question column contains text.');
           return;
         }
 
@@ -1475,17 +1548,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
         for (let i = 1; i < parsedRows.length; i++) {
           const row = parsedRows[i];
-          if (!row || row.length < 3) continue;
+          if (!row || row.length < 2) continue;
 
-          const rawModId = (row[modIdIdx] || '').trim();
-          const rawModTitle = (row[modTitleIdx] || '').trim();
-          const rawSubId = (row[subIdIdx] || '').trim();
-          const rawSubTitle = (row[subTitleIdx] || '').trim();
+          const rawModId = (row[effectiveModIdIdx] || '').trim();
+          const rawModTitle = (row[modTitleIdx] || rawModId || 'Custom Module').trim();
+          const rawSubId = (row[effectiveSubIdIdx] || '').trim();
+          const rawSubTitle = (row[subTitleIdx] || rawSubId || 'General Sub-Module').trim();
           const qLabel = (row[qLabelIdx] || '').trim();
 
           if (!qLabel) continue;
 
-          const topicId = (rawModId || rawModTitle || 'custom-module').toLowerCase().replace(/\s+/g, '-');
+          const topicId = (rawModId || rawModTitle || 'custom-module').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'custom-module';
           const topicTitle = rawModTitle || rawModId || 'Custom Module';
 
           let topic = topicsCopy.find(t => t.id === topicId || t.title.toLowerCase() === topicTitle.toLowerCase());
@@ -1498,14 +1571,14 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             };
             topicsCopy.push(topic);
           }
+          topic.sections = topic.sections || [];
 
-          const sectionId = (rawSubId || rawSubTitle || 'general').toLowerCase().replace(/\s+/g, '-');
+          const sectionId = (rawSubId || rawSubTitle || 'general').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'general';
           const sectionTitle = rawSubTitle || rawSubId || 'General Sub-Module';
 
           let section: Section | undefined = topic.sections.find(s => s.id === sectionId || s.title.toLowerCase() === sectionTitle.toLowerCase());
           
           if (!section) {
-            // AUTOMATICALLY CREATE NEW SUB-MODULE IF NOT EXISTING
             const newSec: Section = {
               id: sectionId,
               title: sectionTitle,
@@ -1518,25 +1591,25 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           if (!section.commands || section.commands.length === 0) {
             section.commands = [{ title: 'Commands & Practice Items', items: [] }];
           }
+          if (!section.commands[0].items) {
+            section.commands[0].items = [];
+          }
 
-          // DEDUPLICATION: Check if question text already exists in this sub-module
           const existingItems = section.commands[0].items || [];
           const normalizedLabel = qLabel.toLowerCase().trim();
           const alreadyExists = existingItems.some(item => (item.label || '').toLowerCase().trim() === normalizedLabel);
 
-          const matchedStat = updatedSubStats.find((s: any) => 
-            (s.subModuleId === rawSubId || s.subModuleTitle.toLowerCase() === sectionTitle.toLowerCase()) &&
-            s.moduleTitle.toLowerCase() === topicTitle.toLowerCase()
-          ) || updatedSubStats.find((s: any) => s.subModuleTitle.toLowerCase() === sectionTitle.toLowerCase()) || updatedSubStats[0];
+          const subKey = `${topicId}___${sectionId}`;
+          const matchedStat = updatedSubStats.find((s: any) => s.subKey === subKey) || 
+                              updatedSubStats.find((s: any) => s.subModuleTitle.toLowerCase() === sectionTitle.toLowerCase()) || 
+                              updatedSubStats[0];
 
           if (alreadyExists) {
-            // SKIPPED: Question already exists in sub-module
             if (matchedStat) {
               matchedStat.skippedDuplicatesCount++;
               matchedStat.status = (matchedStat.addedCount + matchedStat.skippedDuplicatesCount) >= matchedStat.totalInCSV ? 'completed' : 'importing';
             }
           } else {
-            // ADDED: New Question
             const optA = (row[optAIdx] || '').trim();
             const optB = (row[optBIdx] || '').trim();
             const optC = (row[optCIdx] || '').trim();
@@ -1563,9 +1636,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             else if (rawCorrect === 'B' || rawCorrect === '1') correctOptIdx = 1;
             else if (rawCorrect === 'C' || rawCorrect === '2') correctOptIdx = 2;
             else if (rawCorrect === 'D' || rawCorrect === '3') correctOptIdx = 3;
+            else if (rawCorrect === '4') correctOptIdx = 3;
+            else if (optA && rawCorrect.toLowerCase() === optA.toLowerCase()) correctOptIdx = 0;
+            else if (optB && rawCorrect.toLowerCase() === optB.toLowerCase()) correctOptIdx = 1;
+            else if (optC && rawCorrect.toLowerCase() === optC.toLowerCase()) correctOptIdx = 2;
+            else if (optD && rawCorrect.toLowerCase() === optD.toLowerCase()) correctOptIdx = 3;
             else {
               const num = parseInt(rawCorrect, 10);
-              if (!isNaN(num) && num >= 0 && num < 4) correctOptIdx = num;
+              if (!isNaN(num)) {
+                if (num >= 0 && num < 4) correctOptIdx = num;
+                else if (num >= 1 && num <= 4) correctOptIdx = num - 1;
+              }
             }
 
             const correctId = rawOptions[correctOptIdx]?.id || rawOptions[0]?.id;
@@ -1634,15 +1715,21 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           isFinished: true
         });
 
+        setIsImportModalOpen(false);
         showToast(`Import finished: +${totalAdded} new questions added (${totalSkipped} duplicates skipped).`);
-      } catch (err) {
-        console.error(err);
-        alert('Error parsing CSV file. Please make sure it follows the recommended template.');
-      } finally {
-        e.target.value = '';
+      } catch (err: any) {
+        console.error('CSV import error:', err);
+        alert(`Error processing CSV file: ${err?.message || err}\n\nPlease check your CSV formatting or download the recommended template.`);
       }
     };
     reader.readAsText(file);
+  };
+
+  const handleImportQuestionsCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    processCSVFile(file);
+    e.target.value = '';
   };
 
   const filteredUsers = users.filter(u =>
@@ -2832,15 +2919,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   <Download className="h-4 w-4 text-emerald-400" /> Export CSV
                 </button>
 
-                <label className="px-3 py-2 rounded-xl bg-purple-900/40 hover:bg-purple-900/60 text-purple-300 border border-purple-500/30 text-xs font-bold transition-all shadow flex items-center gap-1.5 cursor-pointer shrink-0">
-                  <Upload className="h-4 w-4 text-purple-400" /> Import CSV
-                  <input
-                    type="file"
-                    accept=".csv,.txt"
-                    onChange={handleImportQuestionsCSV}
-                    className="hidden"
-                  />
-                </label>
+                <button
+                  onClick={() => setIsImportModalOpen(!isImportModalOpen)}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all shadow flex items-center gap-1.5 shrink-0 ${
+                    isImportModalOpen
+                      ? 'bg-purple-600 text-white shadow-purple-500/30'
+                      : 'bg-purple-900/40 hover:bg-purple-900/60 text-purple-300 border border-purple-500/30'
+                  }`}
+                  title="Upload or Drag & Drop questions CSV file"
+                >
+                  <Upload className="h-4 w-4 text-purple-400" /> {isImportModalOpen ? 'Close Import' : 'Import CSV (Drag & Drop)'}
+                </button>
 
                 <button
                   onClick={() => setIsAddingTopic(!isAddingTopic)}
@@ -2850,6 +2939,68 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 </button>
               </div>
             </div>
+
+            {/* DRAG & DROP CSV UPLOAD CARD */}
+            {isImportModalOpen && (
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDraggingCSV(true);
+                }}
+                onDragLeave={() => setIsDraggingCSV(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDraggingCSV(false);
+                  const droppedFile = e.dataTransfer.files?.[0];
+                  if (droppedFile) {
+                    processCSVFile(droppedFile);
+                  }
+                }}
+                className={`p-6 rounded-2xl border-2 border-dashed transition-all text-center flex flex-col items-center justify-center gap-3 animate-in fade-in ${
+                  isDraggingCSV
+                    ? 'border-indigo-400 bg-indigo-950/60 shadow-lg shadow-indigo-500/20 scale-[1.01]'
+                    : 'border-purple-500/40 hover:border-purple-400/80 bg-slate-900/90'
+                }`}
+              >
+                <div className={`p-3.5 rounded-2xl transition-all ${isDraggingCSV ? 'bg-indigo-600 text-white animate-bounce' : 'bg-purple-950/60 border border-purple-500/30 text-purple-400'}`}>
+                  <Upload className="h-7 w-7" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-sm font-black text-white">
+                    {isDraggingCSV ? 'Release to upload and import questions!' : 'Drag & Drop CSV / TXT questions file here'}
+                  </h3>
+                  <p className="text-xs text-slate-400 max-w-lg">
+                    Supports single or multiple modules & sub-modules. Automatically matches columns, handles commas or semicolons, and imports in real-time.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2.5 pt-2 flex-wrap justify-center">
+                  <label className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs cursor-pointer shadow transition-all flex items-center gap-2">
+                    <Upload className="h-4 w-4" /> Browse CSV File
+                    <input
+                      type="file"
+                      accept=".csv,.txt,.tsv"
+                      onChange={handleImportQuestionsCSV}
+                      className="hidden"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleDownloadCSVTemplate}
+                    className="px-3.5 py-2 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 transition-all flex items-center gap-1.5"
+                  >
+                    <FileText className="h-3.5 w-3.5 text-amber-400" /> Download Template
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsImportModalOpen(false)}
+                    className="px-3 py-2 rounded-xl border border-slate-800 text-slate-400 hover:text-white text-xs font-bold transition-all"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* ADD MODULE FORM */}
             {isAddingTopic && (
@@ -2922,12 +3073,40 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           <Trash2 className="h-3 w-3" /> Delete ({selectedModuleIds.length})
                         </button>
                       )}
-                      <span className="text-[10px] font-mono text-indigo-400">{topics.length} Stacks</span>
+                      <span className="text-[10px] font-mono text-indigo-400">
+                        {searchTopicQuery ? `${displayedTopics.length}/${topics.length}` : `${topics.length}`} Stacks
+                      </span>
                     </div>
                   </div>
 
+                  {/* REAL-TIME MODULE SEARCH BAR */}
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-500" />
+                    <input
+                      type="text"
+                      value={searchTopicQuery}
+                      onChange={(e) => setSearchTopicQuery(e.target.value)}
+                      placeholder="Search modules & sub-modules..."
+                      className="w-full rounded-xl border border-slate-800 bg-slate-950 pl-8 pr-7 py-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                    {searchTopicQuery && (
+                      <button
+                        onClick={() => setSearchTopicQuery('')}
+                        className="absolute right-2 top-2 text-slate-500 hover:text-slate-300"
+                        title="Clear module search"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+
                   <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1 scrollbar-thin">
-                    {topics.map((t) => (
+                    {displayedTopics.length === 0 ? (
+                      <div className="p-4 text-center text-xs text-slate-500 bg-slate-950/60 rounded-xl border border-slate-800/80">
+                        No modules match "{searchTopicQuery}"
+                      </div>
+                    ) : (
+                      displayedTopics.map((t) => (
                       <div
                         key={t.id}
                         onClick={() => {
@@ -2995,7 +3174,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           </button>
                         </div>
                       </div>
-                    ))}
+                    )))
+                  }
                   </div>
                 </div>
 

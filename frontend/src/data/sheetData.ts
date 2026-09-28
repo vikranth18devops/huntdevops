@@ -71,6 +71,12 @@ export const TOPICS: Topic[] = [
                 "label": "Automated Drift Reconciliation",
                 "command": "argocd app sync --async --prune",
                 "why": "Software agents continuously compare live cluster state to Git state and fix drift."
+              },
+              {
+                "id": "go-3",
+                "label": "Git Versioned Immutability",
+                "command": "git rev-parse --verify HEAD",
+                "why": "All deployments and state changes are version-controlled, auditable, and rollback-ready in Git."
               }
             ]
           }
@@ -159,6 +165,12 @@ export const TOPICS: Topic[] = [
                 "label": "aws rds create-db-snapshot",
                 "command": "aws rds create-db-snapshot --db-instance-identifier prod-db --db-snapshot-identifier snap-01",
                 "why": "Creates manual point-in-time backup snapshot of RDS database instance."
+              },
+              {
+                "id": "aws-dynamo-1",
+                "label": "aws dynamodb describe-table",
+                "command": "aws dynamodb describe-table --table-name user-sessions --query 'Table.TableStatus'",
+                "why": "Inspects status, provisioned capacity, and partition keys for NoSQL DynamoDB tables."
               }
             ]
           }
@@ -189,6 +201,12 @@ export const TOPICS: Topic[] = [
                 "label": "az aks get-credentials",
                 "command": "az aks get-credentials --resource-group rg-prod --name aks-cluster",
                 "why": "Downloads kubeconfig credentials for Azure Kubernetes Service."
+              },
+              {
+                "id": "az-aks-scale",
+                "label": "az aks scale",
+                "command": "az aks scale --resource-group rg-prod --name aks-cluster --node-count 5",
+                "why": "Scales the worker node pool of an Azure Kubernetes Service (AKS) cluster to meet workload demand."
               }
             ]
           }
@@ -212,6 +230,12 @@ export const TOPICS: Topic[] = [
                 "label": "az storage blob upload-batch",
                 "command": "az storage blob upload-batch --destination $web --source ./build --account-name mystorageacct",
                 "why": "Uploads static site build artifacts to Azure Storage container."
+              },
+              {
+                "id": "az-acr-1",
+                "label": "az acr build",
+                "command": "az acr build --registry myregistry --image huntdevops/app:v1 .",
+                "why": "Builds and pushes a container image directly in Azure Container Registry without local Docker engine."
               }
             ]
           }
@@ -366,6 +390,12 @@ export const TOPICS: Topic[] = [
                 "label": "gcloud compute instances create",
                 "command": "gcloud compute instances create app-node-1 --zone us-central1-a --machine-type e2-standard-2",
                 "why": "Provisions Compute Engine virtual machine instance."
+              },
+              {
+                "id": "gcloud-gke-resize",
+                "label": "gcloud container clusters resize",
+                "command": "gcloud container clusters resize huntdevops-gke --node-pool default-pool --num-nodes 3 --region us-central1",
+                "why": "Dynamically resizes GKE cluster node pool capacity to balance cost and workload demands."
               }
             ]
           }
@@ -389,6 +419,12 @@ export const TOPICS: Topic[] = [
                 "label": "gcloud projects add-iam-policy-binding",
                 "command": "gcloud projects add-iam-policy-binding my-project --member serviceAccount:sa@my-project.iam.gserviceaccount.com --role roles/storage.objectAdmin",
                 "why": "Binds IAM role permissions to Google Cloud service account."
+              },
+              {
+                "id": "gcp-secret-1",
+                "label": "gcloud secrets versions access",
+                "command": "gcloud secrets versions access latest --secret=database-url",
+                "why": "Fetches secure environment secrets and API credentials securely from Google Secret Manager."
               }
             ]
           }
@@ -560,6 +596,12 @@ export const TOPICS: Topic[] = [
                 "label": "post { always { cleanWs() } }",
                 "command": "post {\n  always {\n    cleanWs()\n  }\n}",
                 "why": "Ensures workspace directory cleanup after build completes."
+              },
+              {
+                "id": "jenk-3",
+                "label": "post { failure { slackSend ... } }",
+                "command": "post {\n  failure {\n    slackSend channel: '#devops-alerts', message: 'Build Failed!'\n  }\n}",
+                "why": "Executes notification alerts to Slack team channels immediately upon pipeline failure."
               }
             ]
           }

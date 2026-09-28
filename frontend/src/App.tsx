@@ -390,7 +390,6 @@ export function App() {
         onOpenProfile={() => setIsProfileOpen(true)}
         onOpenDashboard={() => setIsDashboardOpen(true)}
         onOpenAchievements={() => setIsAchievementsOpen(true)}
-        onOpenAdmin={() => navigateTo('/admin')}
         completedCount={completedIds.size}
         totalCount={totalChecklistItems}
         isSidebarOpen={isSidebarOpen}
@@ -448,8 +447,6 @@ export function App() {
             <button onClick={() => setActiveTab('practice')} className="hover:underline font-bold text-emerald-700">Practice Incidents</button>
             <span>•</span>
             <button onClick={() => setIsDashboardOpen(true)} className="hover:underline">Launch Stats</button>
-            <span>•</span>
-            <button onClick={() => navigateTo('/admin')} className="hover:underline font-bold text-purple-700">Admin Portal (/admin)</button>
           </div>
         </div>
       </footer>
