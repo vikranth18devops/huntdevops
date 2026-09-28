@@ -6,7 +6,7 @@ metadata:
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
-  project: default
+  project: huntdevops-project
   source:
     repoURL: 'https://github.com/vikranth18devops/huntdevops.git'
     targetRevision: HEAD
