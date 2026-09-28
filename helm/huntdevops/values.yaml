@@ -8,7 +8,7 @@ frontend:
   image:
     repository: us-central1-docker.pkg.dev/project-e746f24e-392a-429f-a4d/huntdevops-repo/frontend
     pullPolicy: Always
-    tag: "78c3be5a2de1b75f586d45914a150112464d7569"
+    tag: "78fe96dd31efe469cdcdbc8ec12d696060751c39"
   service:
     type: ClusterIP
     port: 80
@@ -26,7 +26,7 @@ backend:
   image:
     repository: us-central1-docker.pkg.dev/project-e746f24e-392a-429f-a4d/huntdevops-repo/backend
     pullPolicy: Always
-    tag: "78c3be5a2de1b75f586d45914a150112464d7569"
+    tag: "78fe96dd31efe469cdcdbc8ec12d696060751c39"
 
   service:
     type: ClusterIP
