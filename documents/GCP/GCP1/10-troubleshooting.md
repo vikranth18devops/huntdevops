@@ -42,8 +42,8 @@ This document provides a beginner-friendly diagnostic matrix for resolving issue
   1. Re-authenticate Docker daemon: `gcloud auth configure-docker us-central1-docker.pkg.dev --quiet`.
   2. Grant writer permission:
      ```bash
-     gcloud projects add-iam-policy-binding huntdevops-gcp-prod \
-       --member="serviceAccount:huntdevops-cicd-sa@huntdevops-gcp-prod.iam.gserviceaccount.com" \
+     gcloud projects add-iam-policy-binding project-e746f24e-392a-429f-a4d \
+       --member="serviceAccount:huntdevops-cicd-sa@project-e746f24e-392a-429f-a4d.iam.gserviceaccount.com" \
        --role="roles/artifactregistry.writer"
      ```
 
@@ -71,7 +71,7 @@ This document provides a beginner-friendly diagnostic matrix for resolving issue
 * **How to Fix**:
   1. Verify the exact tag uploaded to Artifact Registry:
      ```bash
-     gcloud artifacts docker images list us-central1-docker.pkg.dev/huntdevops-gcp-prod/huntdevops-repo/backend
+     gcloud artifacts docker images list us-central1-docker.pkg.dev/project-e746f24e-392a-429f-a4d/huntdevops-repo/backend
      ```
   2. Ensure GKE node service account has `roles/artifactregistry.reader` permission.
 

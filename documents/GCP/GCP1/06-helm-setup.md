@@ -47,13 +47,13 @@ Provides configurable variables for container images, replicas, resources, and p
 frontend:
   replicaCount: 2
   image:
-    repository: us-central1-docker.pkg.dev/huntdevops-gcp-prod/huntdevops-repo/frontend
+    repository: us-central1-docker.pkg.dev/project-e746f24e-392a-429f-a4d/huntdevops-repo/frontend
     tag: "main-latest"
 
 backend:
   replicaCount: 2
   image:
-    repository: us-central1-docker.pkg.dev/huntdevops-gcp-prod/huntdevops-repo/backend
+    repository: us-central1-docker.pkg.dev/project-e746f24e-392a-429f-a4d/huntdevops-repo/backend
     tag: "main-latest"
 
 postgresql:

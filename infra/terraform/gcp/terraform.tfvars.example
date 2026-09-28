@@ -1,4 +1,4 @@
-gcp_project_id = "huntdevops-gcp-prod"
+gcp_project_id = "project-e746f24e-392a-429f-a4d"
 project_name   = "huntdevops"
 environment    = "prod"
 region         = "us-central1"

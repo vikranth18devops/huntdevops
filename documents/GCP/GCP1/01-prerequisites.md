@@ -174,7 +174,7 @@ Configure the following secrets under **GitHub Repository Settings → Secrets a
 
 | Secret Name | Description | Example / Required Value |
 | :--- | :--- | :--- |
-| `GCP_PROJECT_ID` | GCP Project Identifier | `huntdevops-gcp-prod` |
+| `GCP_PROJECT_ID` | GCP Project Identifier | `project-e746f24e-392a-429f-a4d` |
 | `GCP_REGION` | GCP Target Region | `us-central1` |
 | `GAR_REPOSITORY` | Artifact Registry Repository Name | `huntdevops-repo` |
 | `GCP_SA_KEY` | Base64 or JSON contents of GCP CI/CD Service Account Key | `{"type": "service_account", ...}` |

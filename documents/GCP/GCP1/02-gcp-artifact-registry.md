@@ -9,7 +9,7 @@ Google Artifact Registry (GAR) is GCP's fully managed, secure container and arti
 ### Step 1: Configure active GCP Project
 Set your target GCP project in the `gcloud` CLI:
 ```bash
-gcloud config set project huntdevops-gcp-prod
+gcloud config set project project-e746f24e-392a-429f-a4d
 ```
 
 ### Step 2: Enable Required GCP APIs
@@ -47,8 +47,8 @@ The URL structure for Artifact Registry images follows standard GCP conventions:
 [LOCATION]-docker.pkg.dev/[PROJECT_ID]/[REPOSITORY_NAME]/[IMAGE_NAME]:[TAG]
 ```
 For **HuntDevOps**:
-* **Frontend URL**: `us-central1-docker.pkg.dev/huntdevops-gcp-prod/huntdevops-repo/frontend:<tag>`
-* **Backend URL**: `us-central1-docker.pkg.dev/huntdevops-gcp-prod/huntdevops-repo/backend:<tag>`
+* **Frontend URL**: `us-central1-docker.pkg.dev/project-e746f24e-392a-429f-a4d/huntdevops-repo/frontend:<tag>`
+* **Backend URL**: `us-central1-docker.pkg.dev/project-e746f24e-392a-429f-a4d/huntdevops-repo/backend:<tag>`
 
 ---
 
@@ -64,15 +64,15 @@ To allow GitHub Actions to build and push container images securely:
 
 2. **Grant Artifact Registry Writer Role**:
    ```bash
-   gcloud projects add-iam-policy-binding huntdevops-gcp-prod \
-     --member="serviceAccount:huntdevops-cicd-sa@huntdevops-gcp-prod.iam.gserviceaccount.com" \
+   gcloud projects add-iam-policy-binding project-e746f24e-392a-429f-a4d \
+     --member="serviceAccount:huntdevops-cicd-sa@project-e746f24e-392a-429f-a4d.iam.gserviceaccount.com" \
      --role="roles/artifactregistry.writer"
    ```
 
 3. **Generate Service Account Key File**:
    ```bash
    gcloud iam service-accounts keys create ~/huntdevops-sa-key.json \
-     --iam-account=huntdevops-cicd-sa@huntdevops-gcp-prod.iam.gserviceaccount.com
+     --iam-account=huntdevops-cicd-sa@project-e746f24e-392a-429f-a4d.iam.gserviceaccount.com
    ```
    > Copy the contents of `~/huntdevops-sa-key.json` into your GitHub repository secret named `GCP_SA_KEY`.
 
@@ -86,5 +86,5 @@ To verify images uploaded to Artifact Registry via CLI:
 gcloud artifacts packages list --repository=huntdevops-repo --location=us-central1
 
 # List specific tags for backend image
-gcloud artifacts docker images list us-central1-docker.pkg.dev/huntdevops-gcp-prod/huntdevops-repo/backend
+gcloud artifacts docker images list us-central1-docker.pkg.dev/project-e746f24e-392a-429f-a4d/huntdevops-repo/backend
 ```

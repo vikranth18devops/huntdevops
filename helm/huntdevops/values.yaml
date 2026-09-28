@@ -6,7 +6,7 @@ global:
 frontend:
   replicaCount: 2
   image:
-    repository: us-central1-docker.pkg.dev/huntdevops-gcp-prod/huntdevops-repo/frontend
+    repository: us-central1-docker.pkg.dev/project-e746f24e-392a-429f-a4d/huntdevops-repo/frontend
     pullPolicy: Always
     tag: "initial-tag"
   service:
@@ -24,7 +24,7 @@ frontend:
 backend:
   replicaCount: 2
   image:
-    repository: us-central1-docker.pkg.dev/huntdevops-gcp-prod/huntdevops-repo/backend
+    repository: us-central1-docker.pkg.dev/project-e746f24e-392a-429f-a4d/huntdevops-repo/backend
     pullPolicy: Always
     tag: "initial-tag"
   service:

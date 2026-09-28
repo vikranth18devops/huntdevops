@@ -71,7 +71,7 @@ Stage 1: Build Application Code         Stage 2: Build Docker Image
 
 ### Step 3: Google Artifact Registry Publishing
 1. GitHub Actions authenticates to GCP using the Service Account key stored in `${{ secrets.GCP_SA_KEY }}`.
-2. The pipeline tags the Docker images with the exact Git commit SHA (`${{ github.sha }}`) and pushes them to `us-central1-docker.pkg.dev/huntdevops-gcp-prod/huntdevops-repo/frontend:<SHA>` and `/backend:<SHA>`.
+2. The pipeline tags the Docker images with the exact Git commit SHA (`${{ github.sha }}`) and pushes them to `us-central1-docker.pkg.dev/project-e746f24e-392a-429f-a4d/huntdevops-repo/frontend:<SHA>` and `/backend:<SHA>`.
 
 ### Step 4: Automated Helm Tag Update & Git Commit
 1. The CI runner updates `helm/huntdevops/values.yaml` setting `tag: "<SHA>"`.
