@@ -10,7 +10,7 @@ frontend:
     pullPolicy: Always
     tag: "814fe6fc9546ade4b866ee6991560c9b70f1cd32"
   service:
-    type: ClusterIP
+    type: LoadBalancer
     port: 80
     targetPort: 80
   resources:
