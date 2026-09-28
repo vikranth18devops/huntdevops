@@ -10,11 +10,12 @@ All HTTP traffic is unified behind **Traefik**, exposed via a single Google Clou
 
 | Component | Path / Route | Live Domain URL | Direct Public IP URL | Default Username | Default Password |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **💻 Frontend Web UI** | `/` (Traefik) | **`http://vikranthsunkarpally.in/`** | **`http://136.112.185.77/`** | N/A (Web UI) | N/A |
-| **⚙️ Backend REST API** | `/api/` (Traefik) | **`http://vikranthsunkarpally.in/api/health`** | **`http://136.112.185.77/api/health`** | N/A (REST API) | N/A |
-| **🐙 Argo CD GitOps UI** | `/argocd` (Traefik) | **`http://vikranthsunkarpally.in/argocd`** | **`http://136.112.185.77/argocd`** | `admin` | **`vmvSfJ72EtCyt1oX`** |
+| **💻 Frontend Web UI** | `/` (Traefik) | **`https://vikranthsunkarpally.in/`** | **`http://136.112.185.77/`** | N/A (Web UI) | N/A |
+| **🛡️ Admin Portal** | `/admin` (Traefik) | **`https://vikranthsunkarpally.in/admin`** | **`http://136.112.185.77/admin`** | `admin` | **`admin123`** |
+| **⚙️ Backend REST API** | `/api/` (Traefik) | **`https://vikranthsunkarpally.in/api/health`** | **`http://136.112.185.77/api/health`** | N/A (REST API) | N/A |
+| **🐙 Argo CD GitOps UI** | `/argocd` (Traefik) | **`https://vikranthsunkarpally.in/argocd`** | **`http://136.112.185.77/argocd`** | `admin` | **`vmvSfJ72EtCyt1oX`** |
 | **🐙 Argo CD Direct LB** | `443` (Direct) | N/A | **`https://136.112.167.2`** | `admin` | **`vmvSfJ72EtCyt1oX`** |
-| **🐘 PostgreSQL Database** | `5432` (Internal) | `huntdevops-postgres:5432` | `localhost:5432` (Tunnel) | `postgres` | **`HuntDevOpsSecurePassword2026!`** |
+| **🐘 PostgreSQL Database** | `5432` (Internal) | `huntdevops-postgres:5432` | `localhost:5434` (Tunnel) | `postgres` | **`HuntDevOpsSecurePassword2026!`** |
 
 ---
 
@@ -23,7 +24,7 @@ All HTTP traffic is unified behind **Traefik**, exposed via a single Google Clou
 The frontend is a dark-mode React TypeScript single-page application served via Nginx and routed by Traefik on Google Kubernetes Engine.
 
 ### 🌐 Live Web URLs
-* 👉 **[http://vikranthsunkarpally.in/](http://vikranthsunkarpally.in/)** (Custom Domain)
+* 👉 **[https://vikranthsunkarpally.in/](https://vikranthsunkarpally.in/)** (Custom Domain)
 * 👉 **[http://136.112.185.77/](http://136.112.185.77/)** (Direct Traefik IP)
 
 * **Traefik LoadBalancer IP**: `136.112.185.77`
@@ -49,12 +50,12 @@ Access at: `http://localhost:3000`
 The backend provides the RESTful API endpoints for user authentication, activity logging, learning modules, and incident lab validation. It is securely accessible via Traefik at `/api/` or directly inside the cluster.
 
 ### 🌐 Live Health Check Endpoints
-* 👉 **[http://vikranthsunkarpally.in/api/health](http://vikranthsunkarpally.in/api/health)**
+* 👉 **[https://vikranthsunkarpally.in/api/health](https://vikranthsunkarpally.in/api/health)**
 * 👉 **[http://136.112.185.77/api/health](http://136.112.185.77/api/health)**
 
 ### Test Command:
 ```bash
-curl -i http://vikranthsunkarpally.in/api/health
+curl -i https://vikranthsunkarpally.in/api/health
 ```
 
 *Expected JSON Response*:
@@ -69,11 +70,11 @@ curl -i http://vikranthsunkarpally.in/api/health
 ### Key API Endpoints:
 | Method | Public URL Endpoint | Description |
 | :--- | :--- | :--- |
-| `GET` | `http://vikranthsunkarpally.in/api/health` | Service & PostgreSQL database health probe |
-| `POST` | `http://vikranthsunkarpally.in/api/auth/register` | Register a new user |
-| `POST` | `http://vikranthsunkarpally.in/api/auth/login` | Authenticate an existing user |
-| `GET` | `http://vikranthsunkarpally.in/api/topics` | Fetch curriculum learning topics & modules |
-| `GET` | `http://vikranthsunkarpally.in/api/labs` | Fetch interactive incident lab scenarios |
+| `GET` | `https://vikranthsunkarpally.in/api/health` | Service & PostgreSQL database health probe |
+| `POST` | `https://vikranthsunkarpally.in/api/auth/register` | Register a new user |
+| `POST` | `https://vikranthsunkarpally.in/api/auth/login` | Authenticate an existing user |
+| `GET` | `https://vikranthsunkarpally.in/api/topics` | Fetch curriculum learning topics & modules |
+| `GET` | `https://vikranthsunkarpally.in/api/labs` | Fetch interactive incident lab scenarios |
 
 ---
 
@@ -82,7 +83,7 @@ curl -i http://vikranthsunkarpally.in/api/health
 Argo CD manages declarative deployments on the GKE cluster, continuously synchronizing from [vikranthsunkarpally/huntdevops](https://github.com/vikranth18devops/huntdevops).
 
 ### 🌐 Live Dashboard URLs
-* **Via Custom Domain**: 👉 **[http://vikranthsunkarpally.in/argocd](http://vikranthsunkarpally.in/argocd)**
+* **Via Custom Domain**: 👉 **[https://vikranthsunkarpally.in/argocd](https://vikranthsunkarpally.in/argocd)**
 * **Via Traefik IP**: 👉 **[http://136.112.185.77/argocd](http://136.112.185.77/argocd)**
 * **Direct LoadBalancer**: 👉 **[https://136.112.167.2](https://136.112.167.2)**
 
