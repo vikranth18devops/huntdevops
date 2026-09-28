@@ -83,12 +83,12 @@ curl -i https://vikranthsunkarpally.in/api/health
 Argo CD manages declarative deployments on the GKE cluster, continuously synchronizing from [vikranthsunkarpally/huntdevops](https://github.com/vikranth18devops/huntdevops).
 
 ### 🌐 Live Dashboard URLs
-* **Via Custom Domain**: 👉 **[https://vikranthsunkarpally.in/argocd](https://vikranthsunkarpally.in/argocd)**
-* **Via Traefik IP**: 👉 **[http://136.112.185.77/argocd](http://136.112.185.77/argocd)**
+* **Custom Domain (Recommended)**: 👉 **[https://vikranthsunkarpally.in/argocd/](https://vikranthsunkarpally.in/argocd/)** (or `https://vikranthsunkarpally.in/argocd`)
 * **Direct LoadBalancer**: 👉 **[https://136.112.167.2](https://136.112.167.2)**
 
 > [!NOTE]
-> When using direct IP access (`136.112.167.2`), Argo CD generates a self-signed TLS certificate by default, so your browser will show a certificate warning. Click **Advanced -> Proceed to 136.112.167.2 (unsafe)** to open the login page.
+> * Access via **`https://vikranthsunkarpally.in/argocd/`** has a valid Let's Encrypt SSL certificate through Traefik and routes with full SPA asset support.
+> * When using direct IP access (`https://136.112.167.2`), click **Advanced -> Proceed to 136.112.167.2 (unsafe)** to bypass the self-signed certificate.
 
 ### 🔑 Login Credentials
 * **Username**: `admin`
