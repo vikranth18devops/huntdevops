@@ -72,5 +72,5 @@ terraform apply -var-file="terraform.tfvars.example" -auto-approve
 ### 5. Obtain `kubectl` Credentials for GKE
 After provisioning completes, connect your local `kubectl` to the new GKE cluster:
 ```bash
-gcloud container clusters get-credentials prod-huntdevops-gke --region us-central1 --project project-e746f24e-392a-429f-a4d
+gcloud container clusters get-credentials prod-huntdevops-gke --zone us-central1-a --project project-e746f24e-392a-429f-a4d
 ```

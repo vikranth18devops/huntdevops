@@ -36,6 +36,7 @@ module "gke" {
   project_name           = var.project_name
   environment            = var.environment
   region                 = var.region
+  zone                   = var.zone
   network_name           = module.vpc.network_name
   subnet_name            = module.vpc.subnet_name
   pods_ip_range_name     = module.vpc.pods_ip_range_name

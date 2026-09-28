@@ -18,6 +18,12 @@ variable "region" {
   description = "GCP Region"
 }
 
+variable "zone" {
+  type        = string
+  default     = ""
+  description = "Specific zone for zonal GKE cluster. If empty, uses var.region for regional cluster."
+}
+
 variable "network_name" {
   type        = string
   description = "VPC Network Name"

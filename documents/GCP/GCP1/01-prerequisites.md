@@ -172,9 +172,12 @@ This document covers all required tools, dependencies, credentials, and verifica
 
 Configure the following secrets under **GitHub Repository Settings → Secrets and variables → Actions**:
 
-| Secret Name | Description | Example / Required Value |
+| Secret Name | Description | Required Value |
 | :--- | :--- | :--- |
 | `GCP_PROJECT_ID` | GCP Project Identifier | `project-e746f24e-392a-429f-a4d` |
 | `GCP_REGION` | GCP Target Region | `us-central1` |
 | `GAR_REPOSITORY` | Artifact Registry Repository Name | `huntdevops-repo` |
-| `GCP_SA_KEY` | Base64 or JSON contents of GCP CI/CD Service Account Key | `{"type": "service_account", ...}` |
+| `GCP_WIF_PROVIDER` | Workload Identity Federation Provider resource path | `projects/174952050783/locations/global/workloadIdentityPools/huntdevops-pool/providers/huntdevops-provider` |
+| `GCP_SA_EMAIL` | Service Account Email address | `huntdevops-cicd-sa@project-e746f24e-392a-429f-a4d.iam.gserviceaccount.com` |
+
+> 💡 **Note**: Because we are using **Workload Identity Federation (WIF)**, no JSON key file (`GCP_SA_KEY`) is needed! Even if you don't define these secrets, the pipeline has fallback defaults configured, but setting them as GitHub Secrets is best practice for production pipelines.
