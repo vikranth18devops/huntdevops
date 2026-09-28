@@ -1,64 +1,31 @@
 # 11 - Application Access URLs, Endpoints & Credentials Guide
 
-This reference document contains the complete access URLs, port-forwarding instructions, API endpoints, service topologies, and administrative credentials for **Frontend**, **Backend**, **PostgreSQL Database**, and the **Argo CD GitOps Dashboard** deployed on Google Kubernetes Engine (GKE).
+This reference document contains the complete **Live Public Internet URLs**, port-forwarding alternatives, API endpoints, service topologies, and administrative credentials for **Frontend**, **Backend**, **PostgreSQL Database**, and the **Argo CD GitOps Dashboard** deployed on Google Kubernetes Engine (GKE).
 
 ---
 
-## 📋 Quick Credentials & Access Summary
+## 🌐 Live Public URLs & Credentials Matrix
 
-| Component | In-Cluster Service | Port | Local Access URL | Default Username | Default Password / Secret |
+Both the **Frontend** and **Argo CD** services are exposed via Google Cloud Network Load Balancers with dedicated public IP addresses.
+
+| Component | Service Type | Live Public URL | Local Tunnel Alternative | Default Username | Default Password |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Argo CD UI** | `argocd-server.argocd` | `443` | `https://localhost:8080` | `admin` | `vmvSfJ72EtCyt1oX` |
-| **Frontend UI** | `huntdevops-frontend.huntdevops` | `80` | `http://localhost:3000` | N/A (Web UI) | N/A |
-| **Backend REST API** | `huntdevops-backend.huntdevops` | `4000` | `http://localhost:4000` | N/A (REST API) | N/A |
-| **PostgreSQL Database** | `huntdevops-postgres.huntdevops` | `5432` | `localhost:5432` | `postgres` | `HuntDevOpsSecurePassword2026!` |
+| **💻 Frontend Web UI** | `LoadBalancer` | **`http://136.116.192.196`** | `http://localhost:3000` | N/A (Web UI) | N/A |
+| **⚙️ Backend REST API** | In-Cluster via Reverse Proxy | **`http://136.116.192.196/api/health`** | `http://localhost:4000/api/health` | N/A (REST API) | N/A |
+| **🐙 Argo CD GitOps UI** | `LoadBalancer` | **`https://136.112.167.2`** | `https://localhost:8080` | `admin` | **`vmvSfJ72EtCyt1oX`** |
+| **🐘 PostgreSQL Database** | `ClusterIP` (Internal) | `huntdevops-postgres:5432` | `localhost:5432` | `postgres` | **`HuntDevOpsSecurePassword2026!`** |
 
 ---
 
-## 1. 🐙 Argo CD GitOps Dashboard
+## 1. 💻 Frontend Application (Live on GKE)
 
-Argo CD manages declarative deployments on the GKE cluster.
+The frontend is a dark-mode React TypeScript single-page application served via an Nginx web server on Google Kubernetes Engine.
 
-### Access Commands
-Run the port-forward command from your terminal:
-```bash
-kubectl port-forward svc/argocd-server -n argocd 8080:443
-```
+### 🌐 Live Web URL
+👉 **[http://136.116.192.196](http://136.116.192.196)**
 
-### Access URL & Credentials
-* **URL**: [https://localhost:8080](https://localhost:8080)
-* **Username**: `admin`
-* **Password**: `vmvSfJ72EtCyt1oX`
-
-> [!TIP]
-> If the password was ever reset or rotated, you can retrieve the current initial admin password at any time using:
-> ```bash
-> kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d && echo
-> ```
-
-### Argo CD CLI Login (Optional)
-```bash
-# Login via CLI
-argocd login localhost:8080 --username admin --password "vmvSfJ72EtCyt1oX" --insecure
-
-# Check application status
-argocd app get huntdevops-app
-```
-
----
-
-## 2. 💻 Frontend Application (React TypeScript SPA)
-
-The frontend is a dark-mode React TypeScript single-page application served via an Nginx web server.
-
-### Access Commands
-Run the port-forward command from your terminal:
-```bash
-kubectl port-forward svc/huntdevops-frontend -n huntdevops 3000:80
-```
-
-### Access URL
-* **URL**: [http://localhost:3000](http://localhost:3000)
+* **External IP**: `136.116.192.196`
+* **Port**: `80` (HTTP)
 * **Namespace**: `huntdevops`
 * **Replicas**: 2 (Load-balanced across cluster nodes)
 * **Features Available**:
@@ -67,26 +34,24 @@ kubectl port-forward svc/huntdevops-frontend -n huntdevops 3000:80
   - Interactive in-browser Linux terminal
   - User registration and progress tracking
 
+### Local Port-Forwarding (Optional Alternative):
+```bash
+kubectl port-forward svc/huntdevops-frontend -n huntdevops 3000:80
+```
+Access at: `http://localhost:3000`
+
 ---
 
-## 3. ⚙️ Backend REST API (Express Node.js)
+## 2. ⚙️ Backend REST API (Live on GKE)
 
-The backend provides the RESTful API endpoints for user authentication, activity logging, learning modules, and incident lab validation.
+The backend provides the RESTful API endpoints for user authentication, activity logging, learning modules, and incident lab validation. It is securely accessible via the frontend Nginx reverse proxy at `/api/` or directly inside the cluster.
 
-### Access Commands
-Run the port-forward command from your terminal:
+### 🌐 Live Health Check Endpoint
+👉 **[http://136.116.192.196/api/health](http://136.116.192.196/api/health)**
+
+### Test Command:
 ```bash
-kubectl port-forward svc/huntdevops-backend -n huntdevops 4000:4000
-```
-
-### Access URL & Endpoints
-* **Base URL**: [http://localhost:4000](http://localhost:4000)
-* **Health Check**: [http://localhost:4000/api/health](http://localhost:4000/api/health)
-
-### Verification via cURL:
-```bash
-# Verify API Health and DB Connection
-curl -i http://localhost:4000/api/health
+curl -i http://136.116.192.196/api/health
 ```
 
 *Expected JSON Response*:
@@ -94,18 +59,45 @@ curl -i http://localhost:4000/api/health
 {
   "status": "online",
   "database": "PostgreSQL (Connected)",
-  "timestamp": "2026-09-28T13:54:12.771Z"
+  "timestamp": "2026-09-28T14:10:57.082Z"
 }
 ```
 
 ### Key API Endpoints:
-| Method | Endpoint | Description |
+| Method | Public URL Endpoint | Description |
 | :--- | :--- | :--- |
-| `GET` | `/api/health` | Health probe returning service & database status |
-| `POST` | `/api/auth/register` | Register a new user |
-| `POST` | `/api/auth/login` | Authenticate an existing user |
-| `GET` | `/api/topics` | Fetch curriculum learning topics & modules |
-| `GET` | `/api/labs` | Fetch interactive incident lab scenarios |
+| `GET` | `http://136.116.192.196/api/health` | Service & PostgreSQL database health probe |
+| `POST` | `http://136.116.192.196/api/auth/register` | Register a new user |
+| `POST` | `http://136.116.192.196/api/auth/login` | Authenticate an existing user |
+| `GET` | `http://136.116.192.196/api/topics` | Fetch curriculum learning topics & modules |
+| `GET` | `http://136.116.192.196/api/labs` | Fetch interactive incident lab scenarios |
+
+---
+
+## 3. 🐙 Argo CD GitOps Dashboard (Live on GKE)
+
+Argo CD manages declarative deployments on the GKE cluster, continuously synchronizing from [vikranth18devops/huntdevops](https://github.com/vikranth18devops/huntdevops).
+
+### 🌐 Live Dashboard URL
+👉 **[https://136.112.167.2](https://136.112.167.2)**
+
+> [!NOTE]
+> Because Argo CD generates a self-signed TLS certificate by default, your browser will show a standard certificate warning. Click **Advanced -> Proceed to 136.112.167.2 (unsafe)** to open the login page.
+
+### 🔑 Login Credentials
+* **Username**: `admin`
+* **Password**: `vmvSfJ72EtCyt1oX`
+
+### Retrieve or Verify Password from Cluster:
+```bash
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d && echo
+```
+
+### Argo CD CLI Login:
+```bash
+argocd login 136.112.167.2:443 --username admin --password "vmvSfJ72EtCyt1oX" --insecure
+argocd app get huntdevops-app
+```
 
 ---
 
@@ -122,7 +114,7 @@ PostgreSQL 16 runs as a Kubernetes StatefulSet backed by a 10Gi Google Persisten
 * **Password Secret Key**: `postgres-password`
 * **Password**: `HuntDevOpsSecurePassword2026!`
 
-### Connecting from Local Machine (psql / DBeaver / pgAdmin)
+### Connecting from Local Machine (psql / DBeaver / TablePlus)
 1. Start port-forwarding:
    ```bash
    kubectl port-forward svc/huntdevops-postgres -n huntdevops 5432:5432
@@ -138,60 +130,21 @@ PostgreSQL 16 runs as a Kubernetes StatefulSet backed by a 10Gi Google Persisten
    kubectl exec -it huntdevops-postgres-0 -n huntdevops -- psql -U postgres -d huntdevops
    ```
 
-### Database Tables Auto-Created:
-* `users`: Registered users, display names, and roles
-* `topics`: Curriculum modules and study guides
-* `incident_labs`: Interactive lab scenarios and tasks
-* `user_completions`: Question completion records
-* `user_lab_solutions`: Completed incident lab tracking
-* `activity_logs`: User activity and device session logs
-
 ---
 
-## 5. 🌐 One-Command Multi-Service Port-Forwarding Script
+## 5. 🔍 Live Cluster Verification Commands
 
-To open access to **all 3 services** simultaneously in the background, you can run this script:
+To verify the status of all public load balancers and services at any time:
 
 ```bash
-#!/bin/bash
-# start-all-services.sh
+# 1. Inspect public Load Balancer external IPs
+kubectl get svc -n huntdevops huntdevops-frontend
+kubectl get svc -n argocd argocd-server
 
-echo "🚀 Starting port-forwards for HuntDevOps on GKE..."
+# 2. Verify all pods are running across namespaces
+kubectl get pods -n huntdevops
+kubectl get pods -n argocd
 
-# 1. Argo CD Web UI (Port 8080 -> 443)
-kubectl port-forward svc/argocd-server -n argocd 8080:443 > /dev/null 2>&1 &
-ARGOCD_PID=$!
-
-# 2. Frontend Web UI (Port 3000 -> 80)
-kubectl port-forward svc/huntdevops-frontend -n huntdevops 3000:80 > /dev/null 2>&1 &
-FRONTEND_PID=$!
-
-# 3. Backend REST API (Port 4000 -> 4000)
-kubectl port-forward svc/huntdevops-backend -n huntdevops 4000:4000 > /dev/null 2>&1 &
-BACKEND_PID=$!
-
-echo "✅ All port-forward tunnels established!"
-echo ""
-echo "📱 Frontend:    http://localhost:3000"
-echo "⚙️ Backend API: http://localhost:4000/api/health"
-echo "🐙 Argo CD:     https://localhost:8080 (User: admin | Pass: vmvSfJ72EtCyt1oX)"
-echo ""
-echo "Press Ctrl+C to terminate all tunnels..."
-
-trap "kill $ARGOCD_PID $FRONTEND_PID $BACKEND_PID; echo 'Tunnels closed.'; exit" INT
-wait
+# 3. Check persistent volume claim status
+kubectl get pvc -n huntdevops
 ```
-
----
-
-## 6. 🔒 Security Best Practices for Production
-
-1. **Rotate the Argo CD Admin Password**:
-   After your initial login, update the admin password:
-   ```bash
-   argocd account update-password
-   ```
-2. **Ingress and TLS/SSL**:
-   In production with a registered domain name, attach a Google Cloud Load Balancer with Google-managed SSL certificates to route traffic securely over HTTPS (`port 443`).
-3. **Database Secrets**:
-   The database secret `huntdevops-postgres-secret` is stored in Kubernetes. In advanced production setups, integrate with **Google Cloud Secret Manager** or **HashiCorp Vault** using External Secrets Operator (ESO).
