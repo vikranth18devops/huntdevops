@@ -100,7 +100,7 @@ export function App() {
     localStorage.setItem('huntdevops_topics', JSON.stringify(newTopics));
   };
 
-  // Dynamic User Management Store (persisted in localStorage)
+  // Dynamic User Management Store (persisted in localStorage) 
   const [userStore, setUserStore] = useState<UserRecord[]>(() => {
     try {
       const saved = localStorage.getItem('huntdevops_user_store');
@@ -356,7 +356,7 @@ export function App() {
   // ROUTE 3: Authenticated View for Learner Platform (/)
   return (
     <div className="min-h-screen bg-background text-foreground font-sans antialiased selection:bg-indigo-500/20">
-      
+
       {/* Top Navbar */}
       <Navbar
         activeTab={activeTab}
@@ -378,7 +378,7 @@ export function App() {
 
       {/* Main Layout Container with Sidebar */}
       <div className="flex">
-        
+
         {/* DevOps Stack Sidebar */}
         {activeTab === 'sheet' && (
           <Sidebar
@@ -489,7 +489,7 @@ export function App() {
       {logoutModalData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-300">
           <div className="w-full max-w-md rounded-3xl border border-indigo-500/30 bg-gradient-to-b from-slate-900 via-slate-900 to-indigo-950 p-6 shadow-2xl text-white space-y-5 animate-in zoom-in-95 duration-300">
-            
+
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 text-xs font-bold uppercase tracking-wider">
                 <Sparkles className="h-4 w-4 text-amber-400 animate-pulse" />
