@@ -1,0 +1,22 @@
+{{- if .Values.traefik.enabled -}}
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ include "huntdevops.fullname" . }}-ingressroute
+  labels:
+    {{- include "huntdevops.labels" . | nindent 4 }}
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: PathPrefix(`/api`)
+      kind: Rule
+      services:
+        - name: {{ include "huntdevops.fullname" . }}-backend
+          port: {{ .Values.backend.service.port }}
+    - match: PathPrefix(`/`)
+      kind: Rule
+      services:
+        - name: {{ include "huntdevops.fullname" . }}-frontend
+          port: {{ .Values.frontend.service.port }}
+{{- end }}

@@ -10,21 +10,24 @@ A complete, **beginner-friendly**, hands-on guide that takes you from an empty G
 ## 🌐 Where You'll End Up
 
 ```text
-        🌐  http://136.116.192.196               <- Live Frontend Application UI
-        🌐  http://136.116.192.196/api/health    <- Live Express Backend REST API
-        🌐  https://136.112.167.2                <- Live Argo CD GitOps Dashboard
+        🌐  http://136.112.185.77/               <- Live Frontend Application UI
+        🌐  http://136.112.185.77/api/health     <- Live Express Backend REST API
+        🌐  http://136.112.185.77/argocd         <- Live Argo CD GitOps Dashboard
                                │
                                ▼
                ┌───────────────────────────────┐
-               │   GCP TCP Network LoadBalancer│ (Single dedicated static public IP)
+               │   GCP TCP Network LoadBalancer│ (Traefik Service, single static IP: 136.112.185.77)
                └───────────────┬───────────────┘
                                ▼
          ┌───────────────────────────────────────────┐
          │        GKE Cluster (us-central1-a)        │
          │                                           │
+         │   traefik namespace (Ingress Controller)  │
+         │   └── Traefik IngressRoutes (/ , /api,    │
+         │                              /argocd)     │
+         │                                           │
          │   huntdevops namespace                    │
          │   ├── huntdevops-frontend (2 replicas, 80)│
-         │   │   └── Nginx reverse proxy /api/       │
          │   ├── huntdevops-backend  (2 replicas, 4000)
          │   └── huntdevops-postgres (StatefulSet)   │
          │       └── 10Gi standard-rwo PersistentDisk│
@@ -53,7 +56,7 @@ Follow them **in order**. Each phase is self-contained but builds on the previou
 | # | Phase | Goal | Time | What Gets Created |
 | :---: | :--- | :--- | :---: | :--- |
 | **1** | [Infra & Cluster Setup](01-infra-and-jump-vm.md) | Provision VPC, GKE, and Artifact Registry via Terraform | ~20 min | Custom VPC, Subnets, Cloud NAT, zonal GKE cluster (`us-central1-a`), Artifact Registry repo |
-| **2** | [Ingress & Load Balancer](02-ingress-and-loadbalancer.md) | Expose the app to the internet via GCP Load Balancer | ~5 min | Google Cloud Network Load Balancer, Public IP `136.116.192.196`, Nginx reverse proxy |
+| **2** | [Traefik Ingress](02-traefik-ingress.md) | Install Traefik & expose via GCP TCP LoadBalancer | ~5 min | Traefik Ingress Controller, single static IP `136.112.185.77`, IngressRoute CRDs |
 | **3** | [GitHub Actions CI](03-github-actions-cicd.md) | Build images, Trivy scan (0 CVEs), WIF push to GAR & bump values.yaml | ~15 min | Keyless CI pipeline, hardened Docker containers, automated tag updates with `[skip ci]` |
 | **4** | [Argo CD Deploy](04-argocd-deploy.md) | Declarative GitOps deployment on GKE with auto-sync | ~15 min | Argo CD controller, AppProject, Application, `huntdevops` namespace, multi-tier rollout |
 | **5** | [DNS & GoDaddy](05-dns-and-godaddy.md) | Map custom domain to the application | ~15 min | GoDaddy DNS A records, apex & subdomain routing, propagation verification |

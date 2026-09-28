@@ -10,7 +10,7 @@ frontend:
     pullPolicy: Always
     tag: "e59d580023c393e3765130ab38e817b4c6d4ee42"
   service:
-    type: LoadBalancer
+    type: ClusterIP
     port: 80
     targetPort: 80
   resources:
@@ -66,8 +66,11 @@ postgresql:
     size: 10Gi
     storageClass: standard-rwo
 
-ingress:
+traefik:
   enabled: true
+
+ingress:
+  enabled: false
   className: nginx
   annotations:
     kubernetes.io/ingress.class: nginx

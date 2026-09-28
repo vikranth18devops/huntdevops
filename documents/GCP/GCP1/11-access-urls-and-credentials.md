@@ -4,28 +4,29 @@ This reference document contains the complete **Live Public Internet URLs**, por
 
 ---
 
-## 🌐 Live Public URLs & Credentials Matrix
+## 🌐 Live Public URLs & Credentials Matrix (Powered by Traefik)
 
-Both the **Frontend** and **Argo CD** services are exposed via Google Cloud Network Load Balancers with dedicated public IP addresses.
+All HTTP traffic is unified behind **Traefik**, exposed via a single Google Cloud Network Load Balancer with dedicated public IP **`136.112.185.77`**.
 
-| Component | Service Type | Live Public URL | Local Tunnel Alternative | Default Username | Default Password |
+| Component | Path / Route | Live Public URL | Local Tunnel Alternative | Default Username | Default Password |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **💻 Frontend Web UI** | `LoadBalancer` | **`http://136.116.192.196`** | `http://localhost:3000` | N/A (Web UI) | N/A |
-| **⚙️ Backend REST API** | In-Cluster via Reverse Proxy | **`http://136.116.192.196/api/health`** | `http://localhost:4000/api/health` | N/A (REST API) | N/A |
-| **🐙 Argo CD GitOps UI** | `LoadBalancer` | **`https://136.112.167.2`** | `https://localhost:8080` | `admin` | **`vmvSfJ72EtCyt1oX`** |
-| **🐘 PostgreSQL Database** | `ClusterIP` (Internal) | `huntdevops-postgres:5432` | `localhost:5432` | `postgres` | **`HuntDevOpsSecurePassword2026!`** |
+| **💻 Frontend Web UI** | `/` (Traefik) | **`http://136.112.185.77/`** | `http://localhost:3000` | N/A (Web UI) | N/A |
+| **⚙️ Backend REST API** | `/api/` (Traefik) | **`http://136.112.185.77/api/health`** | `http://localhost:4000/api/health` | N/A (REST API) | N/A |
+| **🐙 Argo CD GitOps UI** | `/argocd` (Traefik) | **`http://136.112.185.77/argocd`** | `https://localhost:8080` | `admin` | **`vmvSfJ72EtCyt1oX`** |
+| **🐙 Argo CD Direct LB** | `443` (Direct) | **`https://136.112.167.2`** | `https://localhost:8080` | `admin` | **`vmvSfJ72EtCyt1oX`** |
+| **🐘 PostgreSQL Database** | `5432` (Internal) | `huntdevops-postgres:5432` | `localhost:5432` | `postgres` | **`HuntDevOpsSecurePassword2026!`** |
 
 ---
 
-## 1. 💻 Frontend Application (Live on GKE)
+## 1. 💻 Frontend Application (Live on GKE via Traefik)
 
-The frontend is a dark-mode React TypeScript single-page application served via an Nginx web server on Google Kubernetes Engine.
+The frontend is a dark-mode React TypeScript single-page application served via Nginx and routed by Traefik on Google Kubernetes Engine.
 
 ### 🌐 Live Web URL
-👉 **[http://136.116.192.196](http://136.116.192.196)**
+👉 **[http://136.112.185.77/](http://136.112.185.77/)**
 
-* **External IP**: `136.116.192.196`
-* **Port**: `80` (HTTP)
+* **Traefik LoadBalancer IP**: `136.112.185.77`
+* **Port**: `80` (HTTP) & `443` (HTTPS)
 * **Namespace**: `huntdevops`
 * **Replicas**: 2 (Load-balanced across cluster nodes)
 * **Features Available**:
@@ -47,11 +48,11 @@ Access at: `http://localhost:3000`
 The backend provides the RESTful API endpoints for user authentication, activity logging, learning modules, and incident lab validation. It is securely accessible via the frontend Nginx reverse proxy at `/api/` or directly inside the cluster.
 
 ### 🌐 Live Health Check Endpoint
-👉 **[http://136.116.192.196/api/health](http://136.116.192.196/api/health)**
+👉 **[http://136.112.185.77/api/health](http://136.112.185.77/api/health)**
 
 ### Test Command:
 ```bash
-curl -i http://136.116.192.196/api/health
+curl -i http://136.112.185.77/api/health
 ```
 
 *Expected JSON Response*:
@@ -59,18 +60,18 @@ curl -i http://136.116.192.196/api/health
 {
   "status": "online",
   "database": "PostgreSQL (Connected)",
-  "timestamp": "2026-09-28T14:10:57.082Z"
+  "timestamp": "2026-09-28T14:33:33.900Z"
 }
 ```
 
 ### Key API Endpoints:
 | Method | Public URL Endpoint | Description |
 | :--- | :--- | :--- |
-| `GET` | `http://136.116.192.196/api/health` | Service & PostgreSQL database health probe |
-| `POST` | `http://136.116.192.196/api/auth/register` | Register a new user |
-| `POST` | `http://136.116.192.196/api/auth/login` | Authenticate an existing user |
-| `GET` | `http://136.116.192.196/api/topics` | Fetch curriculum learning topics & modules |
-| `GET` | `http://136.116.192.196/api/labs` | Fetch interactive incident lab scenarios |
+| `GET` | `http://136.112.185.77/api/health` | Service & PostgreSQL database health probe |
+| `POST` | `http://136.112.185.77/api/auth/register` | Register a new user |
+| `POST` | `http://136.112.185.77/api/auth/login` | Authenticate an existing user |
+| `GET` | `http://136.112.185.77/api/topics` | Fetch curriculum learning topics & modules |
+| `GET` | `http://136.112.185.77/api/labs` | Fetch interactive incident lab scenarios |
 
 ---
 
@@ -78,8 +79,9 @@ curl -i http://136.116.192.196/api/health
 
 Argo CD manages declarative deployments on the GKE cluster, continuously synchronizing from [vikranth18devops/huntdevops](https://github.com/vikranth18devops/huntdevops).
 
-### 🌐 Live Dashboard URL
-👉 **[https://136.112.167.2](https://136.112.167.2)**
+### 🌐 Live Dashboard URLs
+* **Via Traefik**: 👉 **[http://136.112.185.77/argocd](http://136.112.185.77/argocd)**
+* **Direct LoadBalancer**: 👉 **[https://136.112.167.2](https://136.112.167.2)**
 
 > [!NOTE]
 > Because Argo CD generates a self-signed TLS certificate by default, your browser will show a standard certificate warning. Click **Advanced -> Proceed to 136.112.167.2 (unsafe)** to open the login page.
