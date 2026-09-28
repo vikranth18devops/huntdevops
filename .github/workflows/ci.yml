@@ -224,31 +224,34 @@ jobs:
           docker push ${BACKEND_IMAGE}:${IMAGE_TAG}
           docker push ${BACKEND_IMAGE}:latest
 
-      - name: Update Helm Chart Image References
+      - name: Update Helm Chart Image References & Push
         run: |
-          HELM_VALUES="helm/huntdevops/values.yaml"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
-          # Update frontend and backend image tags specifically (leaving postgresql intact)
+          # 1. Fetch freshest remote state
+          git fetch origin main
+          git checkout main
+          git reset --hard origin/main
+          
+          # 2. Update frontend and backend image tags specifically in values.yaml
+          HELM_VALUES="helm/huntdevops/values.yaml"
           sed -i '/^frontend:/,/^backend:/ s/tag: .*/tag: "'"${IMAGE_TAG}"'"/' ${HELM_VALUES}
           sed -i '/^backend:/,/^postgresql:/ s/tag: .*/tag: "'"${IMAGE_TAG}"'"/' ${HELM_VALUES}
           
           echo "Updated ${HELM_VALUES} with new tag: ${IMAGE_TAG}"
           git diff ${HELM_VALUES}
-
-      - name: Commit & Push Updated Helm Chart Values
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
-          git add helm/huntdevops/values.yaml
+          git add ${HELM_VALUES}
           
-          # Check if there are changes to commit
+          # 3. Commit and push with retry
           if git diff --staged --quiet; then
             echo "No changes in values.yaml to commit."
           else
             git commit -m "chore(helm): update container image tags to ${{ github.sha }} [skip ci]"
-            # Pull latest changes with rebase before pushing to avoid non-fast-forward rejection
-            git pull --rebase origin main
-            git push origin main
+            for i in {1..3}; do
+              git pull --rebase origin main && git push origin main && break || sleep 3
+            done
           fi
+
 
