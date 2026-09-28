@@ -120,28 +120,99 @@ huntdevops=#
 
 ---
 
-## 💻 Step 3: Connect via Local Client (DBeaver, TablePlus, or local psql)
+## 💻 Step 3: Connect via pgAdmin (GUI Desktop Client)
 
-If you prefer using a graphical database management tool on your local workstation:
+Follow these step-by-step instructions to connect to your live PostgreSQL database on GKE using **pgAdmin 4**:
 
-1. **Start port-forwarding to local port 5432**:
-   ```bash
-   kubectl port-forward svc/huntdevops-postgres -n huntdevops 5432:5432
-   ```
+### 1. Start the Port-Forward Tunnel
+Open a terminal window and run `kubectl port-forward` to map the GKE PostgreSQL service to your local machine:
 
-2. **Retrieve the database password from Kubernetes Secret**:
-   ```bash
-   kubectl -n huntdevops get secret huntdevops-postgres-secret -o jsonpath="{.data.postgres-password}" | base64 -d && echo
-   # Output: HuntDevOpsSecurePassword2026!
-   ```
+```bash
+kubectl port-forward svc/huntdevops-postgres -n huntdevops 5432:5432
+```
 
-3. **Configure your database client with**:
-   * **Host**: `localhost`
-   * **Port**: `5432`
-   * **Database**: `huntdevops`
+> [!NOTE]
+> Keep this terminal window open while working in pgAdmin. If your local port `5432` is already occupied by a local PostgreSQL instance, use port `5433`:
+> ```bash
+> kubectl port-forward svc/huntdevops-postgres -n huntdevops 5433:5432
+> ```
+
+---
+
+### 2. Retrieve Database Password from Kubernetes Secret
+Run this command in another terminal tab to retrieve the exact password:
+
+```bash
+kubectl -n huntdevops get secret huntdevops-postgres-secret -o jsonpath="{.data.postgres-password}" | base64 -d && echo ""
+```
+
+*Default Password*:
+```text
+HuntDevOpsSecurePassword2026!
+```
+
+---
+
+### 3. Register the Server in pgAdmin 4
+
+1. Open **pgAdmin 4** on your computer.
+2. In the left **Browser** tree, right-click **Servers** $\rightarrow$ **Register** $\rightarrow$ **Server...**.
+3. In the **General** tab:
+   * **Name**: `HuntDevOps-GKE` (or any friendly name).
+4. Click the **Connection** tab and enter:
+   * **Host name/address**: `localhost` (or `127.0.0.1`)
+   * **Port**: `5432` (or `5433` if you mapped to 5433)
+   * **Maintenance database**: `huntdevops`
    * **Username**: `postgres`
    * **Password**: `HuntDevOpsSecurePassword2026!`
-   * **SSL**: `Disable` (or Require if connecting over an SSL tunnel)
+   * Check **Save password?** for convenience.
+5. In the **SSL** tab:
+   * **SSL mode**: Set to `Prefer` or `Disable` (traffic through `kubectl port-forward` is already securely tunneled).
+6. Click **Save**.
+
+---
+
+### 4. Browse Tables & Inspect Application Data
+
+Once connected:
+1. In the left sidebar tree, expand:
+   `Servers` $\rightarrow$ `HuntDevOps-GKE` $\rightarrow$ `Databases` $\rightarrow$ `huntdevops` $\rightarrow$ `Schemas` $\rightarrow$ `public` $\rightarrow$ `Tables`.
+2. You will see all 6 application tables:
+   * 👤 `users`: Registered users, experience levels, roles, devices, phone numbers.
+   * 📜 `activity_logs`: Real-time session and action audit logs.
+   * 📚 `topics`: Curriculum learning topics, commands, and tasks.
+   * 🧪 `incident_labs`: DevOps incident troubleshooting lab scenarios.
+   * ✅ `user_completions`: Tracked question checklist completions per user.
+   * 🏆 `user_lab_solutions`: Completed incident lab challenge solutions.
+3. Right-click on any table (e.g. `users` or `activity_logs`) $\rightarrow$ **View/Edit Data** $\rightarrow$ **All Rows**.
+
+---
+
+### 5. Run SQL Queries in pgAdmin Query Tool
+
+Click **Tools** $\rightarrow$ **Query Tool** (or press `Alt + Shift + Q` / `Option + Shift + Q`) and run these diagnostic queries:
+
+```sql
+-- 1. Inspect all registered users
+SELECT id, username, display_name, email, phone, role, experience_level, status, last_device_os, created_at 
+FROM users 
+ORDER BY created_at DESC;
+
+-- 2. View recent system and user activity logs
+SELECT id, username, action_type, title, details, device_os, timestamp 
+FROM activity_logs 
+ORDER BY timestamp DESC 
+LIMIT 20;
+
+-- 3. View curriculum topics stored in PostgreSQL
+SELECT id, title, subtitle, updated_at 
+FROM topics;
+
+-- 4. Check user lab progress
+SELECT username, lab_id, solved_at 
+FROM user_lab_solutions;
+```
+
 
 ---
 
