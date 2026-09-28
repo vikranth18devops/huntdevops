@@ -109,10 +109,11 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
-      - name: Authenticate to Google Cloud Platform
+      - name: Authenticate to Google Cloud Platform (Workload Identity Federation)
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER || 'projects/174952050783/locations/global/workloadIdentityPools/huntdevops-pool/providers/huntdevops-provider' }}
+          service_account: ${{ secrets.GCP_SA_EMAIL || 'huntdevops-cicd-sa@project-e746f24e-392a-429f-a4d.iam.gserviceaccount.com' }}
 
       - name: Set up Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v2

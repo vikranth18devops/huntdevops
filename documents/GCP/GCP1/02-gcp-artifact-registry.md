@@ -69,12 +69,22 @@ To allow GitHub Actions to build and push container images securely:
      --role="roles/artifactregistry.writer"
    ```
 
-3. **Generate Service Account Key File**:
-   ```bash
-   gcloud iam service-accounts keys create ~/huntdevops-sa-key.json \
-     --iam-account=huntdevops-cicd-sa@project-e746f24e-392a-429f-a4d.iam.gserviceaccount.com
-   ```
-   > Copy the contents of `~/huntdevops-sa-key.json` into your GitHub repository secret named `GCP_SA_KEY`.
+3. **Workload Identity Federation (Keyless Security)**:
+   > ⚠️ **Note**: Google Cloud enforces `constraints/iam.disableServiceAccountKeyCreation` by default to prevent leaking private keys. Instead, Google Cloud and GitHub Actions use **Workload Identity Federation (WIF)**, eliminating the need to download or store service account JSON keys.
+
+   Configured Workload Identity Federation resources:
+   * **Pool**: `huntdevops-pool`
+   * **Provider**: `huntdevops-provider`
+   * **Workload Identity Provider Name**:
+     ```
+     projects/174952050783/locations/global/workloadIdentityPools/huntdevops-pool/providers/huntdevops-provider
+     ```
+   * **Service Account**:
+     ```
+     huntdevops-cicd-sa@project-e746f24e-392a-429f-a4d.iam.gserviceaccount.com
+     ```
+
+   GitHub Actions authenticates directly without any `.json` key files using OIDC tokens (`id-token: write`).
 
 ---
 
