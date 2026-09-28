@@ -1,0 +1,21 @@
+# Production Environment Overrides for HuntDevOps Helm Chart
+global:
+  environment: production
+
+frontend:
+  replicaCount: 3
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+backend:
+  replicaCount: 3
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+postgresql:
+  persistence:
+    size: 20Gi

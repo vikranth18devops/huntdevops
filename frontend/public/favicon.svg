@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" fill="none">
+  <!-- Background Container -->
+  <rect width="64" height="64" rx="16" fill="#090d16"/>
+  <rect width="64" height="64" rx="16" fill="url(#bg-gradient)" fill-opacity="0.8"/>
+  <rect x="2" y="2" width="60" height="60" rx="14" stroke="url(#border-gradient)" stroke-width="2.5"/>
+
+  <!-- Glowing Background Accent -->
+  <circle cx="32" cy="32" r="18" fill="#6366f1" fill-opacity="0.25" filter="blur(8px)"/>
+
+  <!-- Terminal Window Shell -->
+  <rect x="10" y="14" width="44" height="36" rx="8" fill="#0f172a" stroke="#334155" stroke-width="1.5"/>
+  
+  <!-- Terminal Header Dots -->
+  <circle cx="16" cy="20" r="1.5" fill="#ef4444"/>
+  <circle cx="21" cy="20" r="1.5" fill="#f59e0b"/>
+  <circle cx="26" cy="20" r="1.5" fill="#10b981"/>
+
+  <!-- Terminal Command Prompt >_ -->
+  <path d="M16 28L23 33L16 38" stroke="#818cf8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="26" y1="38" x2="35" y2="38" stroke="#34d399" stroke-width="2.5" stroke-linecap="round"/>
+
+  <!-- Devops Infinity Shield Symbol on Right -->
+  <path d="M38 27C38 27 41 24 44 27C47 30 44 33 41 33C38 33 35 30 38 27Z" stroke="#c084fc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M44 27C44 27 41 30 38 30C35 30 38 27 41 24C44 21 47 24 44 27Z" stroke="#818cf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <defs>
+    <linearGradient id="bg-gradient" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1e1b4b"/>
+      <stop offset="0.5" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#311042"/>
+    </linearGradient>
+    <linearGradient id="border-gradient" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6366f1"/>
+      <stop offset="0.5" stop-color="#a855f7"/>
+      <stop offset="1" stop-color="#ec4899"/>
+    </linearGradient>
+  </defs>
+</svg>

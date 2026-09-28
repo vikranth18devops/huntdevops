@@ -1,0 +1,21 @@
+# Development Environment Overrides for HuntDevOps Helm Chart
+global:
+  environment: development
+
+frontend:
+  replicaCount: 1
+  resources:
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+backend:
+  replicaCount: 1
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+postgresql:
+  persistence:
+    size: 5Gi

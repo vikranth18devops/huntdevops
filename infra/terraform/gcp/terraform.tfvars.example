@@ -1,0 +1,7 @@
+gcp_project_id = "huntdevops-gcp-prod"
+project_name   = "huntdevops"
+environment    = "prod"
+region         = "us-central1"
+repository_id  = "huntdevops-repo"
+node_count     = 2
+machine_type   = "e2-standard-2"

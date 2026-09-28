@@ -1,0 +1,169 @@
+name: HuntDevOps CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - 'feature/*'
+      - 'bugfix/*'
+    paths-ignore:
+      - 'documents/**'
+      - 'README.md'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  # -------------------------------------------------------------
+  # Stage 1: Build Application Code (Frontend & Backend)
+  # -------------------------------------------------------------
+  build-application:
+    name: 1. Build Application Code
+    runs-on: ubuntu-latest
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20 Runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: |
+            frontend/package-lock.json
+            backend/package-lock.json
+
+      - name: Build Frontend React Code
+        run: |
+          npm ci
+          npm run build
+        working-directory: ./frontend
+
+      - name: Build Backend TypeScript Code
+        run: |
+          npm ci
+          npm run build
+        working-directory: ./backend
+
+  # -------------------------------------------------------------
+  # Stage 2: Build Docker Image & Trivy Security Scan (Runs in Parallel)
+  # -------------------------------------------------------------
+  docker-trivy-scan:
+    name: 2. Build Docker & Trivy Security Scan
+    runs-on: ubuntu-latest
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Build Frontend Docker Image (Local Test Tag)
+        run: |
+          docker build -t huntdevops-frontend:${{ github.sha }} ./frontend
+
+      - name: Build Backend Docker Image (Local Test Tag)
+        run: |
+          docker build -t huntdevops-backend:${{ github.sha }} ./backend
+
+      - name: Run Trivy Vulnerability Scan - Frontend Image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'huntdevops-frontend:${{ github.sha }}'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Run Trivy Vulnerability Scan - Backend Image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'huntdevops-backend:${{ github.sha }}'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
+  # -------------------------------------------------------------
+  # Stage 3: Push to Artifact Registry & Update Helm (Main Branch Only)
+  # -------------------------------------------------------------
+  push-gar-and-update-helm:
+    name: 3. GAR Push & Helm Tag Update
+    needs: [build-application, docker-trivy-scan]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[skip ci]')
+    env:
+      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID || 'huntdevops-gcp-prod' }}
+      GCP_REGION: ${{ secrets.GCP_REGION || 'us-central1' }}
+      GAR_REPOSITORY: ${{ secrets.GAR_REPOSITORY || 'huntdevops-repo' }}
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Authenticate to Google Cloud Platform
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker CLI for GCP Artifact Registry
+        run: |
+          gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Define Image Tags
+        id: tags
+        run: |
+          IMAGE_TAG="${{ github.sha }}"
+          GAR_PREFIX="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}"
+          
+          echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_ENV
+          echo "FRONTEND_IMAGE=${GAR_PREFIX}/frontend" >> $GITHUB_ENV
+          echo "BACKEND_IMAGE=${GAR_PREFIX}/backend" >> $GITHUB_ENV
+
+      - name: Build & Push Frontend Image to GAR
+        run: |
+          docker build -t ${FRONTEND_IMAGE}:${IMAGE_TAG} -t ${FRONTEND_IMAGE}:latest ./frontend
+          docker push ${FRONTEND_IMAGE}:${IMAGE_TAG}
+          docker push ${FRONTEND_IMAGE}:latest
+
+      - name: Build & Push Backend Image to GAR
+        run: |
+          docker build -t ${BACKEND_IMAGE}:${IMAGE_TAG} -t ${BACKEND_IMAGE}:latest ./backend
+          docker push ${BACKEND_IMAGE}:${IMAGE_TAG}
+          docker push ${BACKEND_IMAGE}:latest
+
+      - name: Update Helm Chart Image References
+        run: |
+          HELM_VALUES="helm/huntdevops/values.yaml"
+          
+          # Update backend and frontend image tags dynamically using sed
+          sed -i 's/tag: .*/tag: "'"${IMAGE_TAG}"'"/g' ${HELM_VALUES}
+          
+          echo "Updated ${HELM_VALUES} with new tag: ${IMAGE_TAG}"
+          git diff ${HELM_VALUES}
+
+      - name: Commit & Push Updated Helm Chart Values
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add helm/huntdevops/values.yaml
+          
+          # Check if there are changes to commit
+          if git diff --staged --quiet; then
+            echo "No changes in values.yaml to commit."
+          else
+            git commit -m "chore(helm): update container image tags to ${{ github.sha }} [skip ci]"
+            git push origin main
+          fi

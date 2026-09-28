@@ -1,0 +1,16 @@
+apiVersion: v2
+name: huntdevops
+description: Helm Chart for HuntDevOps Multi-tier Web Application on GKE (Frontend, Backend & PostgreSQL)
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - huntdevops
+  - react
+  - express
+  - postgresql
+  - gke
+  - argocd
+maintainers:
+  - name: HuntDevOps Team
+    email: devops@huntdevops.io

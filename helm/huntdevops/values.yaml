@@ -1,0 +1,85 @@
+# HuntDevOps Helm Chart Values Architecture
+global:
+  environment: production
+  appName: huntdevops
+
+frontend:
+  replicaCount: 2
+  image:
+    repository: us-central1-docker.pkg.dev/huntdevops-gcp-prod/huntdevops-repo/frontend
+    pullPolicy: Always
+    tag: "initial-tag"
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 80
+  resources:
+    limits:
+      cpu: 250m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+backend:
+  replicaCount: 2
+  image:
+    repository: us-central1-docker.pkg.dev/huntdevops-gcp-prod/huntdevops-repo/backend
+    pullPolicy: Always
+    tag: "initial-tag"
+  service:
+    type: ClusterIP
+    port: 4000
+    targetPort: 4000
+  env:
+    NODE_ENV: production
+    PORT: "4000"
+    DB_HOST: huntdevops-postgres
+    DB_PORT: "5432"
+    DB_NAME: huntdevops
+    DB_USER: postgres
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 200m
+      memory: 256Mi
+
+postgresql:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "16-alpine"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 5432
+  auth:
+    database: huntdevops
+    username: postgres
+    passwordSecretName: huntdevops-postgres-secret
+    passwordSecretKey: postgres-password
+    rawPassword: "HuntDevOpsSecurePassword2026!"
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: standard-rwd
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+  hosts:
+    - host: huntdevops.example.com
+      paths:
+        - path: /api
+          pathType: Prefix
+          serviceName: huntdevops-backend
+          servicePort: 4000
+        - path: /
+          pathType: Prefix
+          serviceName: huntdevops-frontend
+          servicePort: 80
