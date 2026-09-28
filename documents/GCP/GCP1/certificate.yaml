@@ -1,0 +1,14 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: huntdevops-tls-cert
+  namespace: huntdevops
+spec:
+  secretName: huntdevops-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  commonName: vikranthsunkarpally.in
+  dnsNames:
+    - vikranthsunkarpally.in
+    - www.vikranthsunkarpally.in
