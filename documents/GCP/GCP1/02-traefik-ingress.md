@@ -128,9 +128,9 @@ spec:
           port: 80
 ```
 
-### 2. Argo CD IngressRoute
+### 2. Argo CD IngressRoute (`argocd-ingressroute`)
 
-Routes traffic arriving at `/argocd` directly to the Argo CD Web UI:
+Routes traffic arriving at `/argocd` to the Argo CD Web UI with TLS termination:
 
 ```yaml
 apiVersion: traefik.io/v1alpha1
@@ -141,12 +141,15 @@ metadata:
 spec:
   entryPoints:
     - web
+    - websecure
   routes:
     - match: PathPrefix(`/argocd`)
       kind: Rule
       services:
         - name: argocd-server
           port: 80
+  tls:
+    secretName: huntdevops-tls
 ```
 
 ---
@@ -156,20 +159,20 @@ spec:
 Test all live routes directly against Traefik's public IP (`136.112.185.77`) or via custom domain **`vikranthsunkarpally.in`**:
 
 ```bash
-# 1. Test Frontend SPA HTML response
-curl -I http://vikranthsunkarpally.in/
-# Or directly via IP:
+# 1. Test Frontend SPA HTML response (HTTPS)
+curl -I https://vikranthsunkarpally.in/
+# Or directly via HTTP Traefik IP:
 curl -I http://136.112.185.77/
 
 # 2. Test Backend Health Probe via Traefik routing
-curl -s http://vikranthsunkarpally.in/api/health
-# Or directly via IP:
+curl -s https://vikranthsunkarpally.in/api/health
+# Or directly via HTTP Traefik IP:
 curl -s http://136.112.185.77/api/health
 
 # 3. Test Argo CD Dashboard route
-curl -I http://vikranthsunkarpally.in/argocd
-# Or directly via IP:
-curl -I http://136.112.185.77/argocd
+curl -ILs https://vikranthsunkarpally.in/argocd
+# Or directly via direct Argo CD LoadBalancer IP:
+curl -kILs https://136.112.167.2/
 ```
 
 *Live API Output*:

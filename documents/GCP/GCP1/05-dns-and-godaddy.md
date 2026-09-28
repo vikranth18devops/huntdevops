@@ -99,17 +99,20 @@ nslookup vikranthsunkarpally.in
 
 ## 🚀 Step 4: Test Application Access via Domain
 
-Once `dig` returns `136.112.185.77`, verify that both the Frontend Web UI, Backend REST API, and Argo CD respond cleanly via `vikranthsunkarpally.in`:
+Once `dig` returns `136.112.185.77`, verify that the Frontend Web UI, Admin Portal, Backend REST API, and Argo CD respond cleanly via `vikranthsunkarpally.in`:
 
 ```bash
 # 1. Test Web UI headers
-curl -I http://vikranthsunkarpally.in/
+curl -I https://vikranthsunkarpally.in/
 
-# 2. Test Backend Health Check through Traefik
-curl -s http://vikranthsunkarpally.in/api/health
+# 2. Test Admin Portal route
+curl -I https://vikranthsunkarpally.in/admin
 
-# 3. Test Argo CD GitOps Dashboard redirect
-curl -I http://vikranthsunkarpally.in/argocd
+# 3. Test Backend Health Check through Traefik
+curl -s https://vikranthsunkarpally.in/api/health
+
+# 4. Test Argo CD GitOps Dashboard subpath redirect
+curl -ILs https://vikranthsunkarpally.in/argocd
 ```
 
 *Expected JSON Output from API*:
@@ -121,7 +124,7 @@ curl -I http://vikranthsunkarpally.in/argocd
 }
 ```
 
-Now open **`http://vikranthsunkarpally.in`** in your web browser to interact with the live application!
+Now open **`https://vikranthsunkarpally.in`** in your web browser to interact with the live application, or **`https://vikranthsunkarpally.in/argocd/`** to access the Argo CD dashboard!
 
 ---
 

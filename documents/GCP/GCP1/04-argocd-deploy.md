@@ -97,23 +97,56 @@ spec:
 
 ## 🌐 Step 3: Access Argo CD Web UI & Retrieve Admin Credentials
 
-Argo CD is exposed via a Google Cloud Network Load Balancer:
+Argo CD is accessible via two routes:
+1. **Custom Domain (Unified Edge via Traefik)**: **[https://vikranthsunkarpally.in/argocd/](https://vikranthsunkarpally.in/argocd/)** (or `https://vikranthsunkarpally.in/argocd`)
+2. **Direct GCP L4 LoadBalancer**: **[https://136.112.167.2](https://136.112.167.2)**
 
-* **Live Dashboard URL via Domain**: **[http://vikranthsunkarpally.in/argocd](http://vikranthsunkarpally.in/argocd)**
-* **Via Traefik IP**: **`http://136.112.185.77/argocd`**
-* **Direct GCP LoadBalancer**: **[https://136.112.167.2](https://136.112.167.2)**
-* **Username**: `admin`
-* **Password**: `vmvSfJ72EtCyt1oX`
+| Attribute | Value |
+| :--- | :--- |
+| **Domain URL** | **`https://vikranthsunkarpally.in/argocd/`** |
+| **Direct LoadBalancer** | **`https://136.112.167.2`** |
+| **Default Username** | `admin` |
+| **Admin Password** | **`vmvSfJ72EtCyt1oX`** |
+
+### ⚙️ Required Subpath Configuration for Reverse Proxies (`/argocd`):
+When serving Argo CD under a subpath behind Traefik or any reverse proxy, the API server and UI base href must match:
+
+1. **Configure `argocd-cmd-params-cm`**:
+   ```yaml
+   apiVersion: v1
+   kind: ConfigMap
+   metadata:
+     name: argocd-cmd-params-cm
+     namespace: argocd
+   data:
+     server.basehref: "/argocd"
+     server.rootpath: "/argocd"
+     server.insecure: "true"
+   ```
+
+2. **Configure `argocd-cm`**:
+   ```yaml
+   data:
+     url: "https://vikranthsunkarpally.in/argocd"
+   ```
+
+3. **Pass Flags to `deployment/argocd-server`**:
+   ```bash
+   kubectl patch deployment argocd-server -n argocd --type='json' -p='[
+     {"op": "replace", "path": "/spec/template/spec/containers/0/command", "value": ["/usr/local/bin/argocd-server"]},
+     {"op": "replace", "path": "/spec/template/spec/containers/0/args", "value": ["--basehref", "/argocd", "--rootpath", "/argocd", "--insecure"]}
+   ]'
+   ```
 
 ### Retrieve or Verify Password from Kubernetes Secret:
 ```bash
-kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d && echo
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d && echo ""
 ```
 
 *(Optional) Local port-forward alternative*:
 ```bash
-kubectl port-forward svc/argocd-server -n argocd 8080:443
-# Access at https://localhost:8080
+kubectl port-forward svc/argocd-server -n argocd 8080:80
+# Access at http://localhost:8080/argocd/
 ```
 
 ---

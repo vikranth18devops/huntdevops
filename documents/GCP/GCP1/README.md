@@ -10,10 +10,11 @@ A complete, **beginner-friendly**, hands-on guide that takes you from an empty G
 ## 🌐 Where You'll End Up
 
 ```text
-        🌐  http://vikranthsunkarpally.in/           <- Live Frontend Web Application
-        🌐  http://vikranthsunkarpally.in/api/health <- Live Express Backend REST API
-        🌐  http://vikranthsunkarpally.in/argocd     <- Live Argo CD GitOps Dashboard
-        (Also reachable directly via IP: http://136.112.185.77/)
+        🌐  https://vikranthsunkarpally.in/           <- Live Frontend Web Application (HTTPS)
+        🌐  https://vikranthsunkarpally.in/admin      <- Live Admin Management Portal (admin / admin123)
+        🌐  https://vikranthsunkarpally.in/api/health <- Live Express Backend REST API (HTTPS)
+        🌐  https://vikranthsunkarpally.in/argocd/    <- Live Argo CD GitOps Dashboard (admin / vmvSfJ72EtCyt1oX)
+        (Also reachable directly via IP: http://136.112.185.77/ or Argo CD direct LB: https://136.112.167.2)
                                │
                                ▼
                ┌───────────────────────────────┐

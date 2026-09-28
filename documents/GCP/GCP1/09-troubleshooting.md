@@ -222,6 +222,68 @@ cd infra/terraform/gcp && terraform state list
 
 ---
 
+### Issue 17: Local Port 5432 Already in Use (`bind: address already in use`)
+* **Problem**: Running `kubectl port-forward svc/huntdevops-postgres -n huntdevops 5432:5432` fails with:
+  ```text
+  Unable to listen on port 5432: Listeners failed to create with the following errors:
+  [unable to create listener: Error listen tcp4 127.0.0.1:5432: bind: address already in use]
+  ```
+* **Possible Cause**: A local PostgreSQL instance, brew service, or Docker desktop container is already running and occupying local port 5432.
+* **How to Fix**: Forward to an alternate local port (such as `5434` or `5433`):
+  ```bash
+  # Forward cluster port 5432 to local port 5434:
+  kubectl port-forward svc/huntdevops-postgres -n huntdevops 5434:5432
+  ```
+  Connect using pgAdmin / psql on `localhost:5434`:
+  ```bash
+  PGPASSWORD='HuntDevOpsSecurePassword2026!' psql -h localhost -p 5434 -U postgres -d huntdevops
+  ```
+
+---
+
+### Issue 18: Argo CD Subpath Blank Screen or 404 on Assets behind Traefik (`/argocd`)
+* **Problem**: Accessing `https://vikranthsunkarpally.in/argocd/` returns a blank white screen, or browser network tab shows `404 Not Found` for `main.*.js` and `fonts.css`.
+* **Possible Cause**: Argo CD server's `--basehref` and `--rootpath` are either unset or mismatched (e.g. one has trailing slash `/argocd/` while the other is `/argocd`), causing Argo CD to log `--basehref and --rootpath had conflict` and fall back to `<base href="/">`. Traefik routes `/main.*.js` to the frontend Nginx instead of Argo CD.
+* **How to Fix**:
+  1. Synchronize `argocd-cmd-params-cm`:
+     ```yaml
+     server.basehref: "/argocd"
+     server.rootpath: "/argocd"
+     server.insecure: "true"
+     ```
+  2. Ensure `argocd-cm` contains `url: "https://vikranthsunkarpally.in/argocd"`.
+  3. Patch container command and args in `deployment/argocd-server`:
+     ```bash
+     kubectl patch deployment argocd-server -n argocd --type='json' -p='[
+       {"op": "replace", "path": "/spec/template/spec/containers/0/command", "value": ["/usr/local/bin/argocd-server"]},
+       {"op": "replace", "path": "/spec/template/spec/containers/0/args", "value": ["--basehref", "/argocd", "--rootpath", "/argocd", "--insecure"]}
+     ]'
+     ```
+  4. Verify HTML output has injected base href:
+     ```bash
+     curl -kLs -H "Accept: text/html" https://vikranthsunkarpally.in/argocd/ | grep -i "base href"
+     # Output: <base href="/argocd/">
+     ```
+
+---
+
+### Issue 19: CSV Question Import Error in Admin Portal ("Error parsing CSV file")
+* **Problem**: Uploading a multi-module or sub-module question CSV in the Admin Portal shows:
+  `"Error parsing CSV file. Please make sure it follows the recommended template."`
+* **Possible Cause**: 
+  1. CSV saved with semicolon (`;`) or tab delimiters instead of commas (`,`).
+  2. UTF-8 Byte Order Mark (`\uFEFF`) attached by Microsoft Excel.
+  3. Non-standard or case-sensitive header naming (`Module ID`, `SubModule`, `Option 1`).
+* **How to Fix**:
+  The Admin Portal parser features:
+  - Automatic delimiter detection (`,`, `;`, `\t`).
+  - Automatic stripping of UTF-8 BOM characters.
+  - Case-insensitive synonym header matching (`topicId`, `topic_id`, `module`, `sectionId`, `submodule`).
+  - Drag-and-drop file upload support.
+  - Multi-module row grouping so multiple modules and sub-modules can be imported in a single file.
+
+---
+
 ## ⏭️ Next Step
 
 Proceed to the complete access URLs, credentials, and validation guide:
