@@ -111,3 +111,47 @@ This document provides a beginner-friendly diagnostic matrix for resolving issue
   ```bash
   git commit -m "chore(helm): update container image tags to ${{ github.sha }} [skip ci]"
   ```
+
+---
+
+### Issue 9: Service Account Key Creation Blocked (`constraints/iam.disableServiceAccountKeyCreation`)
+* **Problem**: `gcloud iam service-accounts keys create` fails with `FAILED_PRECONDITION: Key creation is not allowed on this service account`.
+* **Possible Cause**: Google Cloud enforces an Organization Policy constraint blocking downloadable JSON private keys.
+* **How to Fix**: Use **Workload Identity Federation (WIF)** instead of static keys. GitHub Actions authenticates via short-lived OIDC tokens:
+  ```yaml
+  - name: Authenticate to Google Cloud Platform
+    uses: google-github-actions/auth@v2
+    with:
+      workload_identity_provider: 'projects/174952050783/locations/global/workloadIdentityPools/huntdevops-pool/providers/huntdevops-provider'
+      service_account: 'huntdevops-cicd-sa@project-e746f24e-392a-429f-a4d.iam.gserviceaccount.com'
+  ```
+
+---
+
+### Issue 10: Terraform Resource Conflict (`Error 409: Already Exists`)
+* **Problem**: `terraform apply` fails because a resource (like Artifact Registry or Service Account) already exists in GCP but is missing from local state.
+* **How to Fix**: Import the existing resource into Terraform state using `terraform import`:
+  ```bash
+  terraform import -var-file="terraform.tfvars" \
+    module.artifact_registry.google_artifact_registry_repository.repo \
+    projects/project-e746f24e-392a-429f-a4d/locations/us-central1/repositories/huntdevops-repo
+  ```
+
+---
+
+### Issue 11: GKE Resource Availability Error (`GCE_STOCKOUT`)
+* **Problem**: `Error waiting for creating GKE cluster: Google Compute Engine does not have enough resources available to fulfill request: us-central1`.
+* **Possible Cause**: Multi-zone regional clusters deploy across all zones, hitting capacity or quota limits on Spot/Preemptible VMs.
+* **How to Fix**: Configure a specific zone (`zone = "us-central1-a"`) in `terraform.tfvars`. Zonal clusters provision in a single zone and provide 1 free GKE control plane.
+
+---
+
+### Issue 12: Terraform State Lock Error (`Error acquiring the state lock`)
+* **Problem**: `Error acquiring the state lock: resource temporarily unavailable`.
+* **Possible Cause**: Another `terraform apply` is currently in progress, or a previous run was abruptly killed while holding the lock.
+* **How to Fix**:
+  1. Wait for any active `terraform apply` to finish.
+  2. If the operation is definitely dead, release the lock manually:
+     ```bash
+     terraform force-unlock <LOCK_ID>
+     ```
