@@ -8,7 +8,7 @@ frontend:
   image:
     repository: us-central1-docker.pkg.dev/project-e746f24e-392a-429f-a4d/huntdevops-repo/frontend
     pullPolicy: Always
-    tag: "initial-tag"
+    tag: "2a37b2d1b0d387fe0032e9183a825c68ade3f49c"
   service:
     type: ClusterIP
     port: 80
@@ -26,7 +26,7 @@ backend:
   image:
     repository: us-central1-docker.pkg.dev/project-e746f24e-392a-429f-a4d/huntdevops-repo/backend
     pullPolicy: Always
-    tag: "initial-tag"
+    tag: "2a37b2d1b0d387fe0032e9183a825c68ade3f49c"
   service:
     type: ClusterIP
     port: 4000
@@ -50,7 +50,7 @@ postgresql:
   enabled: true
   image:
     repository: postgres
-    tag: "16-alpine"
+    tag: "2a37b2d1b0d387fe0032e9183a825c68ade3f49c"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
