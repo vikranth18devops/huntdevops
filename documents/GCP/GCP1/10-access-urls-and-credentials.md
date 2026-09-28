@@ -1,20 +1,20 @@
-# 11 - Application Access URLs, Endpoints & Credentials Guide
+# 10 - Application Access URLs, Endpoints & Credentials Guide
 
-This reference document contains the complete **Live Public Internet URLs**, port-forwarding alternatives, API endpoints, service topologies, and administrative credentials for **Frontend**, **Backend**, **PostgreSQL Database**, and the **Argo CD GitOps Dashboard** deployed on Google Kubernetes Engine (GKE).
+This reference document contains the complete **Live Public Internet URLs**, custom domain endpoints (**`vikranthsunkarpally.in`**), port-forwarding alternatives, API endpoints, service topologies, and administrative credentials for **Frontend**, **Backend**, **PostgreSQL Database**, and the **Argo CD GitOps Dashboard** deployed on Google Kubernetes Engine (GKE).
 
 ---
 
-## 🌐 Live Public URLs & Credentials Matrix (Powered by Traefik)
+## 🌐 Live Public URLs & Credentials Matrix (Custom Domain & Traefik)
 
-All HTTP traffic is unified behind **Traefik**, exposed via a single Google Cloud Network Load Balancer with dedicated public IP **`136.112.185.77`**.
+All HTTP traffic is unified behind **Traefik**, exposed via a single Google Cloud Network Load Balancer with dedicated public IP **`136.112.185.77`** and mapped to custom domain **`vikranthsunkarpally.in`**.
 
-| Component | Path / Route | Live Public URL | Local Tunnel Alternative | Default Username | Default Password |
+| Component | Path / Route | Live Domain URL | Direct Public IP URL | Default Username | Default Password |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **💻 Frontend Web UI** | `/` (Traefik) | **`http://136.112.185.77/`** | `http://localhost:3000` | N/A (Web UI) | N/A |
-| **⚙️ Backend REST API** | `/api/` (Traefik) | **`http://136.112.185.77/api/health`** | `http://localhost:4000/api/health` | N/A (REST API) | N/A |
-| **🐙 Argo CD GitOps UI** | `/argocd` (Traefik) | **`http://136.112.185.77/argocd`** | `https://localhost:8080` | `admin` | **`vmvSfJ72EtCyt1oX`** |
-| **🐙 Argo CD Direct LB** | `443` (Direct) | **`https://136.112.167.2`** | `https://localhost:8080` | `admin` | **`vmvSfJ72EtCyt1oX`** |
-| **🐘 PostgreSQL Database** | `5432` (Internal) | `huntdevops-postgres:5432` | `localhost:5432` | `postgres` | **`HuntDevOpsSecurePassword2026!`** |
+| **💻 Frontend Web UI** | `/` (Traefik) | **`http://vikranthsunkarpally.in/`** | **`http://136.112.185.77/`** | N/A (Web UI) | N/A |
+| **⚙️ Backend REST API** | `/api/` (Traefik) | **`http://vikranthsunkarpally.in/api/health`** | **`http://136.112.185.77/api/health`** | N/A (REST API) | N/A |
+| **🐙 Argo CD GitOps UI** | `/argocd` (Traefik) | **`http://vikranthsunkarpally.in/argocd`** | **`http://136.112.185.77/argocd`** | `admin` | **`vmvSfJ72EtCyt1oX`** |
+| **🐙 Argo CD Direct LB** | `443` (Direct) | N/A | **`https://136.112.167.2`** | `admin` | **`vmvSfJ72EtCyt1oX`** |
+| **🐘 PostgreSQL Database** | `5432` (Internal) | `huntdevops-postgres:5432` | `localhost:5432` (Tunnel) | `postgres` | **`HuntDevOpsSecurePassword2026!`** |
 
 ---
 
@@ -22,8 +22,9 @@ All HTTP traffic is unified behind **Traefik**, exposed via a single Google Clou
 
 The frontend is a dark-mode React TypeScript single-page application served via Nginx and routed by Traefik on Google Kubernetes Engine.
 
-### 🌐 Live Web URL
-👉 **[http://136.112.185.77/](http://136.112.185.77/)**
+### 🌐 Live Web URLs
+* 👉 **[http://vikranthsunkarpally.in/](http://vikranthsunkarpally.in/)** (Custom Domain)
+* 👉 **[http://136.112.185.77/](http://136.112.185.77/)** (Direct Traefik IP)
 
 * **Traefik LoadBalancer IP**: `136.112.185.77`
 * **Port**: `80` (HTTP) & `443` (HTTPS)
@@ -45,14 +46,15 @@ Access at: `http://localhost:3000`
 
 ## 2. ⚙️ Backend REST API (Live on GKE)
 
-The backend provides the RESTful API endpoints for user authentication, activity logging, learning modules, and incident lab validation. It is securely accessible via the frontend Nginx reverse proxy at `/api/` or directly inside the cluster.
+The backend provides the RESTful API endpoints for user authentication, activity logging, learning modules, and incident lab validation. It is securely accessible via Traefik at `/api/` or directly inside the cluster.
 
-### 🌐 Live Health Check Endpoint
-👉 **[http://136.112.185.77/api/health](http://136.112.185.77/api/health)**
+### 🌐 Live Health Check Endpoints
+* 👉 **[http://vikranthsunkarpally.in/api/health](http://vikranthsunkarpally.in/api/health)**
+* 👉 **[http://136.112.185.77/api/health](http://136.112.185.77/api/health)**
 
 ### Test Command:
 ```bash
-curl -i http://136.112.185.77/api/health
+curl -i http://vikranthsunkarpally.in/api/health
 ```
 
 *Expected JSON Response*:
@@ -60,31 +62,32 @@ curl -i http://136.112.185.77/api/health
 {
   "status": "online",
   "database": "PostgreSQL (Connected)",
-  "timestamp": "2026-09-28T14:33:33.900Z"
+  "timestamp": "2026-09-28T14:47:51.199Z"
 }
 ```
 
 ### Key API Endpoints:
 | Method | Public URL Endpoint | Description |
 | :--- | :--- | :--- |
-| `GET` | `http://136.112.185.77/api/health` | Service & PostgreSQL database health probe |
-| `POST` | `http://136.112.185.77/api/auth/register` | Register a new user |
-| `POST` | `http://136.112.185.77/api/auth/login` | Authenticate an existing user |
-| `GET` | `http://136.112.185.77/api/topics` | Fetch curriculum learning topics & modules |
-| `GET` | `http://136.112.185.77/api/labs` | Fetch interactive incident lab scenarios |
+| `GET` | `http://vikranthsunkarpally.in/api/health` | Service & PostgreSQL database health probe |
+| `POST` | `http://vikranthsunkarpally.in/api/auth/register` | Register a new user |
+| `POST` | `http://vikranthsunkarpally.in/api/auth/login` | Authenticate an existing user |
+| `GET` | `http://vikranthsunkarpally.in/api/topics` | Fetch curriculum learning topics & modules |
+| `GET` | `http://vikranthsunkarpally.in/api/labs` | Fetch interactive incident lab scenarios |
 
 ---
 
 ## 3. 🐙 Argo CD GitOps Dashboard (Live on GKE)
 
-Argo CD manages declarative deployments on the GKE cluster, continuously synchronizing from [vikranth18devops/huntdevops](https://github.com/vikranth18devops/huntdevops).
+Argo CD manages declarative deployments on the GKE cluster, continuously synchronizing from [vikranthsunkarpally/huntdevops](https://github.com/vikranth18devops/huntdevops).
 
 ### 🌐 Live Dashboard URLs
-* **Via Traefik**: 👉 **[http://136.112.185.77/argocd](http://136.112.185.77/argocd)**
+* **Via Custom Domain**: 👉 **[http://vikranthsunkarpally.in/argocd](http://vikranthsunkarpally.in/argocd)**
+* **Via Traefik IP**: 👉 **[http://136.112.185.77/argocd](http://136.112.185.77/argocd)**
 * **Direct LoadBalancer**: 👉 **[https://136.112.167.2](https://136.112.167.2)**
 
 > [!NOTE]
-> Because Argo CD generates a self-signed TLS certificate by default, your browser will show a standard certificate warning. Click **Advanced -> Proceed to 136.112.167.2 (unsafe)** to open the login page.
+> When using direct IP access (`136.112.167.2`), Argo CD generates a self-signed TLS certificate by default, so your browser will show a certificate warning. Click **Advanced -> Proceed to 136.112.167.2 (unsafe)** to open the login page.
 
 ### 🔑 Login Credentials
 * **Username**: `admin`
@@ -139,14 +142,17 @@ PostgreSQL 16 runs as a Kubernetes StatefulSet backed by a 10Gi Google Persisten
 To verify the status of all public load balancers and services at any time:
 
 ```bash
-# 1. Inspect public Load Balancer external IPs
-kubectl get svc -n huntdevops huntdevops-frontend
-kubectl get svc -n argocd argocd-server
+# 1. Inspect Traefik external IP (136.112.185.77)
+kubectl get svc -n traefik traefik
 
-# 2. Verify all pods are running across namespaces
+# 2. Inspect IngressRoutes
+kubectl get ingressroute -A
+
+# 3. Verify all pods are running across namespaces
 kubectl get pods -n huntdevops
+kubectl get pods -n traefik
 kubectl get pods -n argocd
 
-# 3. Check persistent volume claim status
+# 4. Check persistent volume claim status
 kubectl get pvc -n huntdevops
 ```

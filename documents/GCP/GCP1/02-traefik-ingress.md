@@ -153,16 +153,22 @@ spec:
 
 ## 🚀 Step 4: Verification of Live Routes
 
-Test all live routes directly against Traefik's public IP (`136.112.185.77`):
+Test all live routes directly against Traefik's public IP (`136.112.185.77`) or via custom domain **`vikranthsunkarpally.in`**:
 
 ```bash
 # 1. Test Frontend SPA HTML response
+curl -I http://vikranthsunkarpally.in/
+# Or directly via IP:
 curl -I http://136.112.185.77/
 
 # 2. Test Backend Health Probe via Traefik routing
+curl -s http://vikranthsunkarpally.in/api/health
+# Or directly via IP:
 curl -s http://136.112.185.77/api/health
 
 # 3. Test Argo CD Dashboard route
+curl -I http://vikranthsunkarpally.in/argocd
+# Or directly via IP:
 curl -I http://136.112.185.77/argocd
 ```
 

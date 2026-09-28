@@ -120,9 +120,11 @@ kubectl top nodes
 # 2. View CPU and Memory utilization per pod in huntdevops
 kubectl top pods -n huntdevops
 
-# 3. Check health endpoint responsiveness
+# 3. Check health endpoint responsiveness via domain or Traefik IP
 curl -s -w "\nHTTP Status: %{http_code}\nTime Total: %{time_total}s\n" \
-  http://136.116.192.196/api/health
+  http://vikranthsunkarpally.in/api/health
+# Or directly via Traefik IP:
+# curl -s http://136.112.185.77/api/health
 ```
 
 ---

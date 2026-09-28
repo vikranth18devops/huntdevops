@@ -99,7 +99,9 @@ spec:
 
 Argo CD is exposed via a Google Cloud Network Load Balancer:
 
-* **Live Dashboard URL**: **[https://136.112.167.2](https://136.112.167.2)**
+* **Live Dashboard URL via Domain**: **[http://vikranthsunkarpally.in/argocd](http://vikranthsunkarpally.in/argocd)**
+* **Via Traefik IP**: **`http://136.112.185.77/argocd`**
+* **Direct GCP LoadBalancer**: **[https://136.112.167.2](https://136.112.167.2)**
 * **Username**: `admin`
 * **Password**: `vmvSfJ72EtCyt1oX`
 

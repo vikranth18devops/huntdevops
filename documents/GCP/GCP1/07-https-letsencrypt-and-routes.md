@@ -1,11 +1,11 @@
 # Phase 7 — HTTPS with Let's Encrypt & cert-manager (GCP GKE)
 
-**Goal:** Install **cert-manager** on GKE, obtain a free, trusted **Let's Encrypt** SSL/TLS certificate for your custom domain, and terminate HTTPS traffic securely on your GKE cluster.
+**Goal:** Install **cert-manager** on GKE, obtain a free, trusted **Let's Encrypt** SSL/TLS certificate for your custom domain **`vikranthsunkarpally.in`**, and terminate HTTPS traffic securely on your GKE cluster via **Traefik**.
 
 **Time:** ~15 minutes (Let's Encrypt HTTP-01 challenge validation takes ~2–5 minutes).
 
-> **Before this phase:** `http://<your-domain>/` (Unencrypted HTTP traffic, browser shows "Not Secure")  
-> **After this phase:** `https://<your-domain>/` (Trusted green padlock, automated 90-day certificate renewal)
+> **Before this phase:** `http://vikranthsunkarpally.in/` (Unencrypted HTTP traffic, browser shows "Not Secure")  
+> **After this phase:** `https://vikranthsunkarpally.in/` (Trusted green padlock, automated 90-day certificate renewal)
 
 ---
 
@@ -26,7 +26,7 @@
                             │
                             ▼ (Injects tls.crt & tls.key)
  ┌────────────────────────────────────────────────────────┐
- │   GKE Ingress / Nginx / Load Balancer                  │
+ │   Traefik Ingress Controller (namespace: traefik)      │
  │   Terminates HTTPS on Port 443 with valid SSL cert     │
  └────────────────────────────────────────────────────────┘
 ```
@@ -76,13 +76,13 @@ metadata:
 spec:
   acme:
     server: https://acme-v02.api.letsencrypt.org/directory
-    email: admin@yourdomain.com  # Replace with your email for renewal notices
+    email: admin@vikranthsunkarpally.in  # Replace with your email for renewal notices
     privateKeySecretRef:
       name: letsencrypt-prod-account-key
     solvers:
       - http01:
           ingress:
-            class: nginx
+            class: traefik
 ```
 
 Apply the issuer:
@@ -92,7 +92,7 @@ kubectl apply -f cluster-issuer.yaml
 
 ---
 
-## 🔐 Step 3: Request the TLS Certificate
+## 🔐 Step 3: Request the TLS Certificate for `vikranthsunkarpally.in`
 
 Create a `Certificate` manifest (`certificate.yaml`) specifying your domain:
 
@@ -107,10 +107,10 @@ spec:
   issuerRef:
     name: letsencrypt-prod
     kind: ClusterIssuer
-  commonName: yourdomain.com         # Replace with your custom domain
+  commonName: vikranthsunkarpally.in
   dnsNames:
-    - yourdomain.com                 # Replace with your custom domain
-    - www.yourdomain.com             # Optional: additional subdomain
+    - vikranthsunkarpally.in
+    - www.vikranthsunkarpally.in
 ```
 
 Apply the certificate request:
@@ -149,14 +149,17 @@ Once the certificate is marked `READY = True`:
 
 ```bash
 # Verify HTTPS certificate directly via curl
-curl -I https://<your-domain>/
+curl -I https://vikranthsunkarpally.in/
 
 # Verify secure API health endpoint
-curl -s https://<your-domain>/api/health
+curl -s https://vikranthsunkarpally.in/api/health
+
+# Verify secure Argo CD dashboard
+curl -I https://vikranthsunkarpally.in/argocd
 ```
 
 *Expected Result*:
-* Modern browsers display the **secure green padlock** (`https://`).
+* Modern browsers display the **secure green padlock** (`https://vikranthsunkarpally.in`).
 * Certificate automatically auto-renews every 60 days before the 90-day expiry without manual intervention.
 
 ---
