@@ -102,6 +102,20 @@ export function logUserActivity(
   const logs = getActivityLogs();
   const updated = [newLog, ...logs];
   localStorage.setItem('huntdevops_activity_logs', JSON.stringify(updated.slice(0, 150))); // Keep latest 150 logs
+
+  // Sync to PostgreSQL backend
+  fetch('/api/logs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      username,
+      actionType: type,
+      title,
+      details,
+      deviceOS: currentDevice
+    })
+  }).catch(() => {});
+
   return newLog;
 }
 
@@ -161,6 +175,21 @@ export function syncUserToAdminStore(userObj: {
     updateUserStreakOnLogin(userObj.username);
 
     localStorage.setItem('huntdevops_user_store', JSON.stringify(users));
+
+    // Sync to PostgreSQL backend
+    fetch('/api/users/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: userObj.username.trim(),
+        displayName: userObj.displayName,
+        email: userObj.email,
+        phone: userObj.phone,
+        experienceLevel: userObj.experienceLevel,
+        lastDeviceOS: currentDevice
+      })
+    }).catch(() => {});
+
     return users;
   } catch (err) {
     console.error('Failed to sync user to admin store:', err);

@@ -130,6 +130,28 @@ export function App() {
     }
   };
 
+  // Sync users with PostgreSQL backend whenever navigating to admin or on mount
+  useEffect(() => {
+    fetch('/api/users')
+      .then(res => res.ok ? res.json() : [])
+      .then(dbUsers => {
+        if (Array.isArray(dbUsers) && dbUsers.length > 0) {
+          setUserStore(prev => {
+            const merged = [...dbUsers];
+            prev.forEach(p => {
+              if (!merged.some(m => m.username.toLowerCase() === p.username.toLowerCase())) {
+                merged.push(p);
+              }
+            });
+            localStorage.setItem('huntdevops_user_store', JSON.stringify(merged));
+            return merged;
+          });
+        }
+      })
+      .catch(() => {});
+  }, [currentPath]);
+
+
   // App UI Tab state ('sheet' | 'practice')
   const [activeTab, setActiveTab] = useState<'sheet' | 'practice'>('sheet');
   const [activeTopicId, setActiveTopicId] = useState<string>(topics[0]?.id || 'argocd');

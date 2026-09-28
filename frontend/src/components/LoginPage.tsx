@@ -14,7 +14,9 @@ import {
   Shield, 
   Zap
 } from 'lucide-react';
-import { syncUserToAdminStore, logUserActivity } from '../utils/activityStore';
+import { syncUserToAdminStore, detectDeviceOS } from '../utils/activityStore';
+
+
 
 interface LoginPageProps {
   onLoginSuccess: (user: { username: string; displayName?: string; email?: string; phone?: string }) => void;
@@ -33,7 +35,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -72,60 +74,116 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
     setIsSubmitting(true);
 
-    setTimeout(() => {
-      let userExp = mode === 'register' ? experienceLevel : undefined;
-      if (mode === 'login') {
-        try {
-          const savedStore = localStorage.getItem('huntdevops_user_store');
-          if (savedStore) {
-            const users = JSON.parse(savedStore);
-            const match = users.find((u: any) => u.username?.toLowerCase() === username.trim().toLowerCase());
-            if (match?.experienceLevel) {
-              userExp = match.experienceLevel;
-            }
-          }
-        } catch {}
+    try {
+      if (mode === 'register') {
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: username.trim(),
+            displayName: username.trim(),
+            email: email.trim(),
+            password: password,
+            phone: phone.trim(),
+            experienceLevel: experienceLevel,
+            lastDeviceOS: detectDeviceOS()
+          })
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          setError(data.error || 'Failed to create account.');
+          setIsSubmitting(false);
+          return;
+        }
+
+        const userObj = data.user || {
+          username: username.trim(),
+          displayName: username.trim(),
+          email: email.trim(),
+          phone: phone.trim(),
+          experienceLevel: experienceLevel,
+          role: 'Learner',
+          status: 'Active'
+        };
+
+        syncUserToAdminStore(userObj);
+        localStorage.setItem('huntdevops_user', JSON.stringify(userObj));
+        setIsSubmitting(false);
+        onLoginSuccess(userObj);
+        return;
       }
 
+      if (mode === 'login') {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: username.trim(),
+            password: password,
+            lastDeviceOS: detectDeviceOS()
+          })
+        });
+
+        const data = await res.json();
+        if (res.ok && data.user) {
+          syncUserToAdminStore(data.user);
+          localStorage.setItem('huntdevops_user', JSON.stringify(data.user));
+          setIsSubmitting(false);
+          onLoginSuccess(data.user);
+          return;
+        }
+
+        // Fallback check in local user store
+        const savedStore = localStorage.getItem('huntdevops_user_store');
+        if (savedStore) {
+          const users = JSON.parse(savedStore);
+          const match = users.find((u: any) => 
+            (u.username?.toLowerCase() === username.trim().toLowerCase() || u.email?.toLowerCase() === username.trim().toLowerCase()) &&
+            (!u.password || u.password === password)
+          );
+          if (match) {
+            const userObj = {
+              username: match.username,
+              displayName: match.displayName || match.username,
+              email: match.email,
+              phone: match.phone,
+              experienceLevel: match.experienceLevel || 'Beginner',
+              role: match.role || 'Learner',
+              status: match.status || 'Active'
+            };
+            syncUserToAdminStore(userObj);
+            localStorage.setItem('huntdevops_user', JSON.stringify(userObj));
+            setIsSubmitting(false);
+            onLoginSuccess(userObj);
+            return;
+          }
+        }
+
+        setError(data.error || 'Invalid username or password.');
+        setIsSubmitting(false);
+        return;
+      }
+    } catch {
+      // Local fallback in case network / backend offline
+      let userExp = mode === 'register' ? experienceLevel : undefined;
       const userObj = {
         username: username.trim(),
         displayName: username.trim(),
         email: email.trim() || undefined,
         phone: phone.trim() || undefined,
-        experienceLevel: userExp || 'Beginner'
+        experienceLevel: userExp || 'Beginner',
+        role: 'Learner',
+        status: 'Active'
       };
-      
-      // SYNC USER TO ADMIN BACKEND USER MANAGEMENT STORE & LOG ACTIVITY
-      syncUserToAdminStore(userObj);
-      logUserActivity(
-        userObj.username,
-        mode === 'register' ? 'ACCOUNT_CREATED' : 'USER_LOGIN',
-        mode === 'register' ? `Registered New Account: @${userObj.username}` : `User Signed In: @${userObj.username}`,
-        `Email: ${userObj.email || 'N/A'}${userObj.phone ? ` | Phone: ${userObj.phone}` : ''} | Level: ${userObj.experienceLevel}`
-      );
 
+      syncUserToAdminStore(userObj);
       localStorage.setItem('huntdevops_user', JSON.stringify(userObj));
       setIsSubmitting(false);
       onLoginSuccess(userObj);
-    }, 450);
+    }
   };
 
-  const handleSocialLogin = (provider: string) => {
-    setIsSubmitting(true);
-    setTimeout(() => {
-      const dummyUsername = `${provider.toLowerCase()}_user`;
-      const userObj = {
-        username: dummyUsername,
-        displayName: `${provider} Learner`,
-        email: `${dummyUsername}@devops.io`
-      };
-      syncUserToAdminStore(userObj);
-      logUserActivity(userObj.username, 'USER_LOGIN', `Logged in via ${provider}`, `OAuth SSO`);
-      localStorage.setItem('huntdevops_user', JSON.stringify(userObj));
-      setIsSubmitting(false);
-      onLoginSuccess(userObj);
-    }, 400);
-  };
 
   return (
     <div className="relative min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4 sm:p-6 lg:p-10 font-sans antialiased selection:bg-indigo-500/30 overflow-hidden">
@@ -466,37 +524,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                 )}
               </button>
             </form>
-
-            {/* DRIBBBLE STYLE SOCIAL AUTH FAST SIGN IN */}
-            <div className="space-y-3 pt-3 border-t border-slate-800/80">
-              <div className="relative flex items-center justify-center">
-                <span className="bg-slate-900 px-3 text-[10px] font-mono uppercase text-slate-500 font-bold z-10">
-                  Or Quick Continue With
-                </span>
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-slate-800" />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => handleSocialLogin('GitHub')}
-                  className="py-2.5 px-4 rounded-xl border border-slate-800 bg-slate-950 hover:bg-slate-800/80 text-xs font-bold text-slate-300 hover:text-white transition-all flex items-center justify-center gap-2 shadow-sm"
-                >
-                  <GithubIcon className="h-4 w-4 text-white" /> GitHub
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSocialLogin('Google')}
-                  className="py-2.5 px-4 rounded-xl border border-slate-800 bg-slate-950 hover:bg-slate-800/80 text-xs font-bold text-slate-300 hover:text-white transition-all flex items-center justify-center gap-2 shadow-sm"
-                >
-                  <span className="font-black text-amber-400">G</span> Google SSO
-                </button>
-              </div>
-            </div>
-
           </div>
+
 
           {/* Mode Switch Footer */}
           <div className="text-center pt-4 border-t border-slate-800/80">
@@ -533,22 +562,3 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   );
 };
 
-function GithubIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg 
-      {...props} 
-      xmlns="http://www.w3.org/2000/svg" 
-      width="24" 
-      height="24" 
-      viewBox="0 0 24 24" 
-      fill="none" 
-      stroke="currentColor" 
-      strokeWidth="2" 
-      strokeLinecap="round" 
-      strokeLinejoin="round"
-    >
-      <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" />
-      <path d="M9 18c-4.51 2-5-2-7-2" />
-    </svg>
-  );
-}

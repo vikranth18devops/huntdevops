@@ -1,5 +1,16 @@
 {{- if .Values.traefik.enabled -}}
 apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-to-https
+  labels:
+    {{- include "huntdevops.labels" . | nindent 4 }}
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true
+---
+apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
   name: huntdevops-ingressroute
@@ -9,13 +20,10 @@ spec:
   entryPoints:
     - web
   routes:
-    - match: PathPrefix(`/api`)
-      kind: Rule
-      services:
-        - name: huntdevops-backend
-          port: {{ .Values.backend.service.port }}
     - match: PathPrefix(`/`)
       kind: Rule
+      middlewares:
+        - name: redirect-to-https
       services:
         - name: huntdevops-frontend
           port: {{ .Values.frontend.service.port }}

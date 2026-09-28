@@ -33,7 +33,7 @@ app.get('/api/health', (req, res) => {
 // 2. Authentication Endpoints
 // -------------------------------------------------------------
 app.post('/api/auth/register', async (req, res) => {
-  const { username, displayName, email, password, role, experienceLevel, lastDeviceOS } = req.body;
+  const { username, displayName, email, password, phone, role, experienceLevel, lastDeviceOS } = req.body;
 
   if (!username || !email || !password) {
     return res.status(400).json({ error: 'Username, email, and password are required.' });
@@ -44,22 +44,45 @@ app.post('/api/auth/register', async (req, res) => {
     username: username.trim(),
     displayName: displayName ? displayName.trim() : username.trim(),
     email: email.trim(),
+    phone: phone ? phone.trim() : undefined,
     password: password,
     role: role || 'Learner',
     experienceLevel: experienceLevel || 'Beginner',
     status: 'Active',
     lastDeviceOS: lastDeviceOS || 'MacBook / macOS',
-    createdAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    createdAt: new Date().toISOString().split('T')[0]
   };
 
   if (getIsPostgresAvailable()) {
     try {
       const result = await pool.query(
-        `INSERT INTO users (id, username, display_name, email, password_hash, role, experience_level, status, last_device_os)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-         RETURNING id, username, display_name as "displayName", email, role, experience_level as "experienceLevel", status, last_device_os as "lastDeviceOS", created_at as "createdAt"`,
-        [userObj.id, userObj.username, userObj.displayName, userObj.email, userObj.password, userObj.role, userObj.experienceLevel, userObj.status, userObj.lastDeviceOS]
+        `INSERT INTO users (id, username, display_name, email, password_hash, role, experience_level, status, last_device_os, phone)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         ON CONFLICT (username) DO UPDATE SET
+           display_name = EXCLUDED.display_name,
+           email = EXCLUDED.email,
+           password_hash = EXCLUDED.password_hash,
+           experience_level = EXCLUDED.experience_level,
+           last_device_os = EXCLUDED.last_device_os,
+           phone = EXCLUDED.phone
+         RETURNING id, username, display_name as "displayName", email, phone, role, experience_level as "experienceLevel", status, last_device_os as "lastDeviceOS", TO_CHAR(created_at, 'YYYY-MM-DD') as "createdAt"`,
+        [userObj.id, userObj.username, userObj.displayName, userObj.email, userObj.password, userObj.role, userObj.experienceLevel, userObj.status, userObj.lastDeviceOS, userObj.phone || null]
       );
+
+      // Record activity log in PostgreSQL
+      await pool.query(
+        `INSERT INTO activity_logs (id, username, action_type, title, details, device_os)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          `log_${Date.now()}`,
+          userObj.username,
+          'ACCOUNT_CREATED',
+          `New Account Registered: @${userObj.username}`,
+          `Email: ${userObj.email}${userObj.phone ? ` | Phone: ${userObj.phone}` : ''} | Experience: ${userObj.experienceLevel}`,
+          userObj.lastDeviceOS
+        ]
+      ).catch(() => {});
+
       return res.status(201).json({ user: result.rows[0], token: `jwt_${userObj.id}` });
     } catch (err: any) {
       if (err.code === '23505') {
@@ -79,12 +102,12 @@ app.post('/api/auth/register', async (req, res) => {
 });
 
 app.post('/api/auth/login', async (req, res) => {
-  const { username, password } = req.body;
+  const { username, password, lastDeviceOS } = req.body;
 
   if (getIsPostgresAvailable()) {
     try {
       const result = await pool.query(
-        `SELECT id, username, display_name as "displayName", email, role, experience_level as "experienceLevel", status, password_hash
+        `SELECT id, username, display_name as "displayName", email, phone, role, experience_level as "experienceLevel", status, last_device_os as "lastDeviceOS", TO_CHAR(created_at, 'YYYY-MM-DD') as "createdAt", password_hash
          FROM users WHERE LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($1)`,
         [username]
       );
@@ -93,6 +116,15 @@ app.post('/api/auth/login', async (req, res) => {
         const u = result.rows[0];
         if (u.password_hash === password) {
           delete u.password_hash;
+
+          // Record login activity in PostgreSQL
+          const device = lastDeviceOS || u.lastDeviceOS || 'MacBook / macOS';
+          await pool.query(
+            `INSERT INTO activity_logs (id, username, action_type, title, details, device_os)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [`log_${Date.now()}`, u.username, 'USER_LOGIN', `User Signed In: @${u.username}`, `Device: ${device}`, device]
+          ).catch(() => {});
+
           return res.json({ user: u, token: `jwt_${u.id}` });
         }
       }
@@ -116,16 +148,95 @@ app.get('/api/users', async (req, res) => {
   if (getIsPostgresAvailable()) {
     try {
       const result = await pool.query(
-        `SELECT id, username, display_name as "displayName", email, role, experience_level as "experienceLevel", status, last_device_os as "lastDeviceOS", TO_CHAR(created_at, 'Mon DD, YYYY') as "createdAt"
+        `SELECT id, username, display_name as "displayName", email, phone, role, experience_level as "experienceLevel", status, last_device_os as "lastDeviceOS", TO_CHAR(created_at, 'YYYY-MM-DD') as "createdAt"
          FROM users ORDER BY created_at DESC`
       );
-      return res.json(result.rows);
+      if (result.rows.length > 0) {
+        return res.json(result.rows);
+      }
     } catch (err) {
       console.error(err);
     }
   }
   return res.json(inMemoryUsers);
 });
+
+// Sync user to PostgreSQL database from Admin or Auth
+app.post('/api/users/sync', async (req, res) => {
+  const { username, displayName, email, phone, role, experienceLevel, status, lastDeviceOS } = req.body;
+  if (!username) return res.status(400).json({ error: 'Username is required.' });
+
+  const id = `usr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+  const uName = username.trim();
+  const dName = displayName ? displayName.trim() : uName;
+  const uEmail = email ? email.trim() : `${uName}@huntdevops.io`;
+  const uRole = role || 'Learner';
+  const uExp = experienceLevel || 'Beginner';
+  const uStatus = status || 'Active';
+  const uDevice = lastDeviceOS || 'MacBook / macOS';
+
+  if (getIsPostgresAvailable()) {
+    try {
+      const result = await pool.query(
+        `INSERT INTO users (id, username, display_name, email, password_hash, role, experience_level, status, last_device_os, phone)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         ON CONFLICT (username) DO UPDATE SET
+           display_name = EXCLUDED.display_name,
+           email = EXCLUDED.email,
+           experience_level = EXCLUDED.experience_level,
+           status = EXCLUDED.status,
+           last_device_os = EXCLUDED.last_device_os,
+           phone = EXCLUDED.phone
+         RETURNING id, username, display_name as "displayName", email, phone, role, experience_level as "experienceLevel", status, last_device_os as "lastDeviceOS", TO_CHAR(created_at, 'YYYY-MM-DD') as "createdAt"`,
+        [id, uName, dName, uEmail, 'user_pwd_hash', uRole, uExp, uStatus, uDevice, phone || null]
+      );
+      return res.json({ success: true, user: result.rows[0] });
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  return res.json({ success: true });
+});
+
+// Logs Endpoint for Activity Tracking
+app.get('/api/logs', async (req, res) => {
+  if (getIsPostgresAvailable()) {
+    try {
+      const result = await pool.query(
+        `SELECT id, username, action_type as "actionType", title, details, device_os as "deviceOS", TO_CHAR(timestamp, 'YYYY-MM-DD HH24:MI:SS') as "timestamp"
+         FROM activity_logs ORDER BY timestamp DESC LIMIT 150`
+      );
+      return res.json(result.rows);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+  return res.json(inMemoryLogs);
+});
+
+app.post('/api/logs', async (req, res) => {
+  const { username, actionType, title, details, deviceOS } = req.body;
+  const id = `log_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+  const logObj = { id, username: username || 'System', actionType: actionType || 'GENERAL', title: title || '', details: details || '', deviceOS: deviceOS || 'MacBook / macOS', timestamp: new Date().toISOString() };
+
+  if (getIsPostgresAvailable()) {
+    try {
+      await pool.query(
+        `INSERT INTO activity_logs (id, username, action_type, title, details, device_os)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [id, logObj.username, logObj.actionType, logObj.title, logObj.details, logObj.deviceOS]
+      );
+      return res.json({ success: true, log: logObj });
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  inMemoryLogs.unshift(logObj);
+  return res.json({ success: true, log: logObj });
+});
+
 
 // PUT /api/users/:userId/experience-level - UPDATE DEVOPS EXPERIENCE LEVEL
 app.put('/api/users/:userId/experience-level', async (req, res) => {

@@ -51,12 +51,16 @@ export async function initDatabase() {
         display_name VARCHAR(150),
         email VARCHAR(255) UNIQUE NOT NULL,
         password_hash VARCHAR(255) NOT NULL,
+        phone VARCHAR(50),
         role VARCHAR(50) DEFAULT 'Learner',
         experience_level VARCHAR(50) DEFAULT 'Beginner',
         status VARCHAR(50) DEFAULT 'Active',
         last_device_os VARCHAR(100),
         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       );
+
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(50);
+
 
       CREATE TABLE IF NOT EXISTS topics (
         id VARCHAR(100) PRIMARY KEY,
