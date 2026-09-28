@@ -128,14 +128,13 @@ Follow these step-by-step instructions to connect to your live PostgreSQL databa
 Open a terminal window and run `kubectl port-forward` to map the GKE PostgreSQL service to your local machine:
 
 ```bash
-kubectl port-forward svc/huntdevops-postgres -n huntdevops 5432:5432
+# Recommended on Mac (since port 5432 and 5433 are occupied by local postgres & Docker):
+kubectl port-forward svc/huntdevops-postgres -n huntdevops 5434:5432
 ```
 
 > [!NOTE]
-> Keep this terminal window open while working in pgAdmin. If your local port `5432` is already occupied by a local PostgreSQL instance, use port `5433`:
-> ```bash
-> kubectl port-forward svc/huntdevops-postgres -n huntdevops 5433:5432
-> ```
+> Keep this terminal window open while working in pgAdmin. The output will confirm:
+> `Forwarding from 127.0.0.1:5434 -> 5432`
 
 ---
 
@@ -161,11 +160,12 @@ HuntDevOpsSecurePassword2026!
    * **Name**: `HuntDevOps-GKE` (or any friendly name).
 4. Click the **Connection** tab and enter:
    * **Host name/address**: `localhost` (or `127.0.0.1`)
-   * **Port**: `5432` (or `5433` if you mapped to 5433)
+   * **Port**: `5434`
    * **Maintenance database**: `huntdevops`
    * **Username**: `postgres`
    * **Password**: `HuntDevOpsSecurePassword2026!`
    * Check **Save password?** for convenience.
+
 5. In the **SSL** tab:
    * **SSL mode**: Set to `Prefer` or `Disable` (traffic through `kubectl port-forward` is already securely tunneled).
 6. Click **Save**.
