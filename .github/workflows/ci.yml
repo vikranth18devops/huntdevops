@@ -247,5 +247,8 @@ jobs:
             echo "No changes in values.yaml to commit."
           else
             git commit -m "chore(helm): update container image tags to ${{ github.sha }} [skip ci]"
+            # Pull latest changes with rebase before pushing to avoid non-fast-forward rejection
+            git pull --rebase origin main
             git push origin main
           fi
+
