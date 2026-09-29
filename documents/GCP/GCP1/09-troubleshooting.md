@@ -284,9 +284,35 @@ cd infra/terraform/gcp && terraform state list
 
 ---
 
+### Issue 20: Cloud SQL Database Connection Failed or Timeout
+* **Problem**: Backend logs show `⚠️ PostgreSQL connection note: connect ETIMEDOUT` or `password authentication failed for user "postgres"`.
+* **Possible Cause**: 
+  1. `DB_HOST` in `helm/huntdevops/values.yaml` is pointing to old in-cluster DNS (`huntdevops-postgres`) instead of Cloud SQL Private IP (`10.154.0.3`).
+  2. VPC Peering Service Networking connection (`servicenetworking.googleapis.com`) is not established between the GKE VPC and Google Services.
+  3. `DB_PASSWORD` secret does not match the provisioned Cloud SQL password (`HuntDevOpsCloudSQL2026!`).
+* **How to Fix**:
+  1. Verify Cloud SQL private and public IP via gcloud:
+     ```bash
+     gcloud sql instances describe prod-huntdevops-psql-2eecc976 --format="table(name,ipAddresses[0].ipAddress,ipAddresses[1].ipAddress)"
+     ```
+  2. Verify VPC peering connection from Terraform outputs:
+     ```bash
+     terraform -chdir=infra/terraform/gcp output cloudsql_private_ip
+     ```
+  3. Ensure `helm/huntdevops/values.yaml` sets:
+     - `DB_HOST: "10.154.0.3"`
+     - `rawPassword: "HuntDevOpsCloudSQL2026!"`
+  4. Test connectivity directly from a pod or local psql:
+     ```bash
+     PGPASSWORD='HuntDevOpsCloudSQL2026!' psql -h 35.232.123.246 -p 5432 -U postgres -d huntdevops -c "\l"
+     ```
+
+---
+
 ## ⏭️ Next Step
 
 Proceed to the complete access URLs, credentials, and validation guide:
 👉 **[10 - Live Access URLs & Credentials Guide](file:///Users/aarvik/Documents/huntdevops/documents/GCP/GCP1/10-access-urls-and-credentials.md)**
+
 
 

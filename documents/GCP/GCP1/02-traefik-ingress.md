@@ -56,8 +56,8 @@ This is modeled directly after the **CloudKitchen GCP architecture**, using Trae
          │ └─────────────┬─────────────┘ │
          │               ▼               │
          │ ┌───────────────────────────┐ │
-         │ │ huntdevops-postgres:5432  │ │
-         │ │ (10Gi standard-rwo PVC)   │ │
+         │ │ Cloud SQL PostgreSQL 16   │ │
+         │ │ (Private IP: 10.154.0.3)  │ │
          │ └───────────────────────────┘ │
          └───────────────────────────────┘
 ```

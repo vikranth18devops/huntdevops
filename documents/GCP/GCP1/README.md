@@ -30,9 +30,9 @@ A complete, **beginner-friendly**, hands-on guide that takes you from an empty G
          │                                           │
          │   huntdevops namespace                    │
          │   ├── huntdevops-frontend (2 replicas, 80)│
-         │   ├── huntdevops-backend  (2 replicas, 4000)
-         │   └── huntdevops-postgres (StatefulSet)   │
-         │       └── 10Gi standard-rwo PersistentDisk│
+         │   ├── huntdevops-backend  (2 replicas, 4000)│
+         │   │   └── Private VPC Peering (10.154.0.3)│
+         │   │       └── Cloud SQL PostgreSQL 16     │
          │                                           │
          │   argocd namespace                        │
          │   └── Argo CD Server, Controller, Redis   │

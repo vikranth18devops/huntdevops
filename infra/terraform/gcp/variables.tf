@@ -50,3 +50,29 @@ variable "machine_type" {
   default     = "e2-standard-2"
   description = "GKE Node Instance Machine Type"
 }
+
+variable "db_name" {
+  type        = string
+  default     = "huntdevops"
+  description = "Cloud SQL database name"
+}
+
+variable "db_user" {
+  type        = string
+  default     = "postgres"
+  description = "Cloud SQL admin user"
+}
+
+variable "db_password" {
+  type        = string
+  default     = "HuntDevOpsCloudSQL2026!"
+  description = "Cloud SQL database password"
+  sensitive   = true
+}
+
+variable "cloudsql_tier" {
+  type        = string
+  default     = "db-g1-small"
+  description = "Cloud SQL machine tier"
+}
+

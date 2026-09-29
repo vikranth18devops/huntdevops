@@ -56,3 +56,17 @@ module "iam" {
   gcp_project_id = var.gcp_project_id
   project_name   = var.project_name
 }
+
+# 5. Cloud SQL PostgreSQL Database Module
+module "cloudsql" {
+  source        = "./modules/cloudsql"
+  project_name  = var.project_name
+  environment   = var.environment
+  region        = var.region
+  network_id    = module.vpc.network_id
+  db_name       = var.db_name
+  db_user       = var.db_user
+  db_password   = var.db_password
+  tier          = var.cloudsql_tier
+}
+

@@ -166,14 +166,12 @@ kubectl get pods,pvc -n huntdevops -o wide
 *Expected Output*:
 ```text
 NAME                                       READY   STATUS    RESTARTS   AGE
-pod/huntdevops-backend-868bb87f58-dlf5s    1/1     Running   0          5m
-pod/huntdevops-backend-868bb87f58-x924j    1/1     Running   0          5m
-pod/huntdevops-frontend-5684d7b764-5st6q   1/1     Running   0          5m
-pod/huntdevops-frontend-5684d7b764-zl9pj   1/1     Running   0          5m
-pod/huntdevops-postgres-0                  1/1     Running   0          30m
+pod/huntdevops-backend-74b6545d5d-667h2    1/1     Running   0          5m
+pod/huntdevops-backend-74b6545d5d-chccp    1/1     Running   0          5m
+pod/huntdevops-frontend-dfbfcc8dd-b6gjj    1/1     Running   0          5m
+pod/huntdevops-frontend-dfbfcc8dd-fg9gt    1/1     Running   0          5m
 
-NAME                                                        STATUS   VOLUME         CAPACITY   STORAGECLASS
-persistentvolumeclaim/postgres-data-huntdevops-postgres-0   Bound    pvc-xxxx       10Gi       standard-rwo
+# Note: PostgreSQL runs on Google Cloud SQL (10.154.0.3) managed externally via Terraform
 ```
 
 ---

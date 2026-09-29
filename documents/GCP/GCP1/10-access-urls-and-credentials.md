@@ -13,9 +13,10 @@ All HTTP traffic is unified behind **Traefik**, exposed via a single Google Clou
 | **💻 Frontend Web UI** | `/` (Traefik) | **`https://vikranthsunkarpally.in/`** | **`http://136.112.185.77/`** | N/A (Web UI) | N/A |
 | **🛡️ Admin Portal** | `/admin` (Traefik) | **`https://vikranthsunkarpally.in/admin`** | **`http://136.112.185.77/admin`** | `admin` | **`admin123`** |
 | **⚙️ Backend REST API** | `/api/` (Traefik) | **`https://vikranthsunkarpally.in/api/health`** | **`http://136.112.185.77/api/health`** | N/A (REST API) | N/A |
-| **🐙 Argo CD GitOps UI** | `/argocd` (Traefik) | **`https://vikranthsunkarpally.in/argocd`** | **`http://136.112.185.77/argocd`** | `admin` | **`vmvSfJ72EtCyt1oX`** |
+| **🐙 Argo CD GitOps UI** | `/argocd` (Traefik) | **`https://vikranthsunkarpally.in/argocd/`** | **`http://136.112.185.77/argocd`** | `admin` | **`vmvSfJ72EtCyt1oX`** |
 | **🐙 Argo CD Direct LB** | `443` (Direct) | N/A | **`https://136.112.167.2`** | `admin` | **`vmvSfJ72EtCyt1oX`** |
-| **🐘 PostgreSQL Database** | `5432` (Internal) | `huntdevops-postgres:5432` | `localhost:5434` (Tunnel) | `postgres` | **`HuntDevOpsSecurePassword2026!`** |
+| **🐘 Cloud SQL PostgreSQL** | `5432` (Managed) | `10.154.0.3:5432` (Private VPC) | **`35.232.123.246:5432`** (Public) | `postgres` | **`HuntDevOpsCloudSQL2026!`** |
+
 
 ---
 
@@ -107,34 +108,33 @@ argocd app get huntdevops-app
 
 ---
 
-## 4. 🐘 PostgreSQL Database (StatefulSet)
+## 4. 🐘 Google Cloud SQL for PostgreSQL 16 (Enterprise Managed DB)
 
-PostgreSQL 16 runs as a Kubernetes StatefulSet backed by a 10Gi Google Persistent Disk (`standard-rwo`).
+HuntDevOps runs on a dedicated **Google Cloud SQL for PostgreSQL 16** instance (`prod-huntdevops-psql-2eecc976`) in `us-central1-a` provisioned via Terraform (`module.cloudsql`).
 
-### Connection Details (Internal Cluster DNS)
-* **Host**: `huntdevops-postgres.huntdevops.svc.cluster.local` (or `huntdevops-postgres`)
-* **Port**: `5432`
+### Connection Endpoints
 * **Database Name**: `huntdevops`
+* **Admin Username**: `postgres`
+* **Admin Password**: `HuntDevOpsCloudSQL2026!`
+* **Private IP (VPC Peering)**: `10.154.0.3:5432` (Used by GKE Backend pods)
+* **Public IP Address**: `35.232.123.246:5432` (Direct access for pgAdmin / DBeaver)
+* **GCP Connection Name**: `project-e746f24e-392a-429f-a4d:us-central1:prod-huntdevops-psql-2eecc976`
+
+### Connecting from Local Machine (pgAdmin 4 / DBeaver / psql)
+Because Cloud SQL has Public IP with Authorized Networks enabled, **you can connect directly without port-forwarding**:
+
+```bash
+# Direct psql connection:
+PGPASSWORD='HuntDevOpsCloudSQL2026!' psql -h 35.232.123.246 -p 5432 -U postgres -d huntdevops
+```
+
+In **pgAdmin 4**:
+* **Host**: `35.232.123.246`
+* **Port**: `5432`
+* **Maintenance database**: `huntdevops`
 * **Username**: `postgres`
-* **Password Secret Name**: `huntdevops-postgres-secret`
-* **Password Secret Key**: `postgres-password`
-* **Password**: `HuntDevOpsSecurePassword2026!`
-
-### Connecting from Local Machine (psql / DBeaver / TablePlus)
-1. Start port-forwarding:
-   ```bash
-   kubectl port-forward svc/huntdevops-postgres -n huntdevops 5432:5432
-   ```
-
-2. Connect using `psql`:
-   ```bash
-   PGPASSWORD='HuntDevOpsSecurePassword2026!' psql -h localhost -p 5432 -U postgres -d huntdevops
-   ```
-
-3. Connect directly inside the pod:
-   ```bash
-   kubectl exec -it huntdevops-postgres-0 -n huntdevops -- psql -U postgres -d huntdevops
-   ```
+* **Password**: `HuntDevOpsCloudSQL2026!`
+* **SSL mode**: `Prefer` / `Allow`
 
 ---
 

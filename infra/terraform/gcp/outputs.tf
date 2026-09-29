@@ -22,3 +22,29 @@ output "cicd_service_account_email" {
   value       = module.iam.service_account_email
   description = "CI/CD Service Account Email"
 }
+
+output "cloudsql_instance_name" {
+  value       = module.cloudsql.instance_name
+  description = "Cloud SQL Instance Name"
+}
+
+output "cloudsql_instance_connection_name" {
+  value       = module.cloudsql.instance_connection_name
+  description = "Cloud SQL Instance Connection Name"
+}
+
+output "cloudsql_private_ip" {
+  value       = module.cloudsql.private_ip_address
+  description = "Cloud SQL Private IP Address"
+}
+
+output "cloudsql_public_ip" {
+  value       = module.cloudsql.public_ip_address
+  description = "Cloud SQL Public IP Address"
+}
+
+output "cloudsql_database_name" {
+  value       = module.cloudsql.database_name
+  description = "Cloud SQL Database Name"
+}
+

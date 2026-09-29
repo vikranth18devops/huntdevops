@@ -1,260 +1,278 @@
-# Phase 8 — HuntDevOps PostgreSQL Database Guide
+# Phase 8 — Google Cloud SQL for PostgreSQL Architecture & Operations Guide
 
-This guide explains how to connect to the **PostgreSQL** database running inside the GKE cluster, query every table belonging to the HuntDevOps application, manage backups, and troubleshoot database connectivity.
-
-It is the **post-deploy companion** to `documents/GCP/GCP1/` — once Phase 4 is green and pods are Ready, every command below works as-is against your live GKE cluster.
+This comprehensive reference document covers the **Google Cloud SQL for PostgreSQL 16** managed database architecture, automated Terraform provisioning, network topologies (Private IP VPC Peering & Public IP access), pgAdmin connection setups, schema auto-migrations, and production maintenance for **HuntDevOps**.
 
 ---
 
-## 🏛️ How the Database is Set Up
+## 🏛️ Architecture: Cloud SQL vs In-Cluster PostgreSQL
 
-HuntDevOps runs **1 PostgreSQL pod** (`huntdevops-postgres-0`) as a **StatefulSet** inside the `huntdevops` namespace on GKE.
+HuntDevOps runs on **Google Cloud SQL for PostgreSQL** as an enterprise-grade managed database instead of an in-cluster StatefulSet.
 
-* **Image**: `postgres:16-alpine`
-* **Storage Class**: `standard-rwo` (Google Compute Engine Persistent Disk, ReadWriteOnce)
-* **Volume Size**: 10Gi (`postgres-data-huntdevops-postgres-0`)
-* **Secret**: `huntdevops-postgres-secret` (Key: `postgres-password`)
-* **Port**: `5432`
-* **Internal Cluster DNS**: `huntdevops-postgres.huntdevops.svc.cluster.local:5432`
-
-### Database Schema & Tables
-
-The Express backend initializes the tables automatically on startup via `initDatabase()` in `backend/server/db.ts`:
-
-| Table Name | Primary Key | Description | Stored Information |
-| :--- | :--- | :--- | :--- |
-| `users` | `id` (VARCHAR) | Registered users & learners | `username`, `display_name`, `email`, `password_hash`, `role`, `experience_level`, `last_device_os` |
-| `topics` | `id` (VARCHAR) | DevOps curriculum modules | `title`, `subtitle`, `data_json` (JSONB curriculum content) |
-| `incident_labs` | `id` (VARCHAR) | Interactive simulation labs | `title`, `topic`, `experience_level`, `data_json` (lab scenario, tasks, hints) |
-| `user_completions` | `id` (SERIAL) | Tracked user progress | `username`, `question_id`, `completed_at` |
-| `user_lab_solutions`| `id` (SERIAL) | Solved incident challenges | `username`, `lab_id`, `solved_at` |
-| `activity_logs` | `id` (VARCHAR) | Real-time audit & session logs | `username`, `action_type`, `title`, `details`, `device_os`, `timestamp` |
-
-> 💡 **Persistence Guarantee**: Because PostgreSQL is deployed as a StatefulSet with a `volumeClaimTemplates` PersistentVolumeClaim, the database data survives pod crashes, rollouts, and node restarts.
-
----
-
-## 🔌 Step 1: Connect to the Cluster & Verify the Postgres Pod
-
-First, make sure your `kubectl` context is configured for your live GKE cluster:
-
-```bash
-gcloud container clusters get-credentials prod-huntdevops-gke \
-  --zone us-central1-a --project project-e746f24e-392a-429f-a4d
-
-# Sanity-check: pod should show Running 1/1
-kubectl -n huntdevops get pod huntdevops-postgres-0
-
-# Verify the PVC is Bound
-kubectl -n huntdevops get pvc postgres-data-huntdevops-postgres-0
-```
-
-*Expected Output*:
 ```text
-NAME                     READY   STATUS    RESTARTS   AGE
-huntdevops-postgres-0   1/1     Running   0          25m
+       ┌─────────────────────────────────────────────────────────────┐
+       │             Google Cloud Platform (us-central1)             │
+       │                                                             │
+       │  VPC Network: prod-huntdevops-vpc (10.0.0.0/20)             │
+       │  ┌───────────────────────────────────────────────────────┐  │
+       │  │ GKE Cluster (prod-huntdevops-gke) in us-central1-a    │  │
+       │  │ ┌───────────────────────────────────────────────────┐ │  │
+       │  │ │ huntdevops-frontend (React SPA on Nginx)         │ │  │
+       │  │ └─────────────────────────┬─────────────────────────┘ │  │
+       │  │                           ▼ (/api)                    │  │
+       │  │ ┌───────────────────────────────────────────────────┐ │  │
+       │  │ │ huntdevops-backend (Express REST API)            │ │  │
+       │  │ └─────────────────────────┬─────────────────────────┘ │  │
+       │  └───────────────────────────┼───────────────────────────┘  │
+       │                              │                              │
+       │                              │ Private IP (10.154.0.3:5432) │
+       │                              │ via Service Networking       │
+       │                              ▼ (VPC Peering)                │
+       │  ┌───────────────────────────────────────────────────────┐  │
+       │  │ Google Cloud SQL for PostgreSQL 16 (Enterprise)       │  │
+       │  │ Instance: prod-huntdevops-psql-2eecc976               │  │
+       │  │ Tier: db-g1-small (1.7 GiB RAM, 20 GiB PD_SSD)        │  │
+       │  │ Database: huntdevops                                  │  │
+       │  │ User: postgres                                        │  │
+       │  │                                                       │  │
+       │  │ • Private Address: 10.154.0.3 (Internal GKE Traffic)  │  │
+       │  │ • Public Address: 35.232.123.246 (pgAdmin / DBeaver)  │  │
+       │  │ • Automated Daily Backups + Query Insights            │  │
+       │  └───────────────────────────────────────────────────────┘  │
+       └──────────────────────────────▲──────────────────────────────┘
+                                      │ Direct Public IP: 35.232.123.246:5432
+                                      │ (Authorized Networks: 0.0.0.0/0)
+                               ┌──────┴──────────────────┐
+                               │ Developer Local Laptop  │
+                               │ pgAdmin 4 / DBeaver     │
+                               └─────────────────────────┘
+```
 
-NAME                                      STATUS   VOLUME                                     CAPACITY   STORAGECLASS
-postgres-data-huntdevops-postgres-0       Bound    pvc-6a0befa4-3475-49d2-a3a4-d8712cfa20fe   10Gi       standard-rwo
+### Key Advantages of Google Cloud SQL:
+| Capability | In-Cluster StatefulSet (Legacy) | Google Cloud SQL (Active Production) |
+| :--- | :--- | :--- |
+| **Compute Overhead** | Consumes GKE node CPU & memory | Dedicated managed GCP compute (offloaded from GKE) |
+| **Storage Resiliency** | Tied to zonal persistent volume claim | Fully managed SSD storage with auto-resize enabled |
+| **Backup & Recovery** | Manual scripts or Velero required | Automated daily backups, retention policies & point-in-time recovery |
+| **High Availability** | Complex manual patroni/failover setup | Native Google Cloud regional/zonal HA management |
+| **Monitoring** | Custom Prometheus exporters | Native Google Cloud Monitoring & Query Insights enabled |
+| **External GUI Access** | Requires `kubectl port-forward` | Direct Public IP access via pgAdmin & DBeaver |
+
+---
+
+## 🔑 Database Credentials & Network Endpoints Matrix
+
+| Parameter | Configuration Value | Usage / Notes |
+| :--- | :--- | :--- |
+| **GCP Instance Name** | `prod-huntdevops-psql-2eecc976` | Unique Cloud SQL resource identifier |
+| **GCP Connection Name** | `project-e746f24e-392a-429f-a4d:us-central1:prod-huntdevops-psql-2eecc976` | Used by Cloud SQL Auth Proxy & GCP integrations |
+| **Database Engine** | `PostgreSQL 16` | Latest stable enterprise release |
+| **Machine Tier** | `db-g1-small` | 1.7 GiB RAM, 20 GB SSD storage |
+| **Database Name** | **`huntdevops`** | Application database created by Terraform |
+| **Admin Username** | **`postgres`** | Primary administrative user |
+| **Admin Password** | **`HuntDevOpsCloudSQL2026!`** | Provisioned via Terraform and Kubernetes secret |
+| **Private IP (VPC)** | **`10.154.0.3`** | Direct connection from GKE backend pods |
+| **Public IP Address** | **`35.232.123.246`** | Direct connection from pgAdmin / DBeaver / psql |
+| **Port** | `5432` | Standard PostgreSQL port |
+
+---
+
+## 🛠️ Step 1: Infrastructure as Code (Terraform Cloud SQL Module)
+
+Cloud SQL is managed as code under `infra/terraform/gcp/modules/cloudsql/`.
+
+### 1. Module Definition (`infra/terraform/gcp/modules/cloudsql/main.tf`):
+```hcl
+resource "random_id" "db_suffix" {
+  byte_length = 4
+}
+
+# 1. Allocate an internal IP range for Private Services Access (VPC Peering)
+resource "google_compute_global_address" "private_ip_address" {
+  name          = "${var.environment}-${var.project_name}-psql-private-ip"
+  purpose       = "VPC_PEERING"
+  address_type  = "INTERNAL"
+  prefix_length = 16
+  network       = var.network_id
+}
+
+# 2. Establish VPC Peering with Google Managed Services (servicenetworking)
+resource "google_service_networking_connection" "private_vpc_connection" {
+  network                 = var.network_id
+  service                 = "servicenetworking.googleapis.com"
+  reserved_peering_ranges = [google_compute_global_address.private_ip_address.name]
+}
+
+# 3. Create Cloud SQL PostgreSQL Instance
+resource "google_sql_database_instance" "instance" {
+  name                = "${var.environment}-${var.project_name}-psql-${random_id.db_suffix.hex}"
+  database_version    = var.database_version
+  region              = var.region
+  deletion_protection = false
+
+  depends_on = [google_service_networking_connection.private_vpc_connection]
+
+  settings {
+    tier              = var.tier
+    availability_type = "ZONAL"
+    disk_size         = 20
+    disk_type         = "PD_SSD"
+
+    ip_configuration {
+      ipv4_enabled                                  = true
+      private_network                               = var.network_id
+      enable_private_path_for_google_cloud_services = true
+
+      dynamic "authorized_networks" {
+        for_each = var.authorized_networks
+        content {
+          name  = authorized_networks.value.name
+          value = authorized_networks.value.value
+        }
+      }
+    }
+
+    backup_configuration {
+      enabled                        = true
+      start_time                     = "03:00"
+      point_in_time_recovery_enabled = false
+      transaction_log_retention_days = 3
+      backup_retention_settings {
+        retained_backups = 7
+      }
+    }
+
+    insights_config {
+      query_insights_enabled  = true
+      query_string_length     = 1024
+      record_application_tags = false
+      record_client_address   = false
+    }
+  }
+}
+
+# 4. Create Initial Application Database
+resource "google_sql_database" "database" {
+  name     = var.db_name
+  instance = google_sql_database_instance.instance.name
+}
+
+# 5. Create Application Database User
+resource "google_sql_user" "users" {
+  name     = var.db_user
+  instance = google_sql_database_instance.instance.name
+  password = var.db_password
+}
 ```
 
 ---
 
-## 🔍 Step 2: Querying the Database
+## ⚙️ Step 2: GKE Backend Integration & Helm Configuration
 
-There are two primary ways to query PostgreSQL — pick the one that fits the task.
+The backend connects to Cloud SQL via its **Private IP** (`10.154.0.3`) through Google's high-speed internal VPC peering:
 
-### Option A — Run a Single Query (Quick One-Liner)
+### 1. `helm/huntdevops/values.yaml` Settings:
+```yaml
+backend:
+  env:
+    NODE_ENV: production
+    PORT: "4000"
+    DB_HOST: "10.154.0.3"      # Cloud SQL Private IP inside prod-huntdevops-vpc
+    DB_PORT: "5432"
+    DB_NAME: "huntdevops"
+    DB_USER: "postgres"
 
-Best for rapid ad-hoc checks (counting users, inspecting latest activity logs, checking table existence).
-
-```bash
-kubectl exec -n huntdevops huntdevops-postgres-0 -- \
-  psql -U postgres -d huntdevops -c "<SQL query>"
+postgresql:
+  enabled: false               # Disables in-cluster StatefulSet & Service
+  auth:
+    database: huntdevops
+    username: postgres
+    passwordSecretName: huntdevops-postgres-secret
+    passwordSecretKey: postgres-password
+    rawPassword: "HuntDevOpsCloudSQL2026!"
+  persistence:
+    enabled: false
 ```
 
-#### Examples:
-```bash
-# 1. List all tables in huntdevops database
-kubectl exec -n huntdevops huntdevops-postgres-0 -- \
-  psql -U postgres -d huntdevops -c "\dt"
-
-# 2. Count registered users
-kubectl exec -n huntdevops huntdevops-postgres-0 -- \
-  psql -U postgres -d huntdevops -c "SELECT COUNT(*) FROM users;"
-
-# 3. View the 5 most recent activity logs
-kubectl exec -n huntdevops huntdevops-postgres-0 -- \
-  psql -U postgres -d huntdevops -c "SELECT id, username, action_type, title, timestamp FROM activity_logs ORDER BY timestamp DESC LIMIT 5;"
-
-# 4. View incident lab scenario titles
-kubectl exec -n huntdevops huntdevops-postgres-0 -- \
-  psql -U postgres -d huntdevops -c "SELECT id, title, topic, experience_level FROM incident_labs;"
-```
+### 2. Auto-Migration on Boot:
+When `huntdevops-backend` boots, `initDatabase()` in `backend/server/db.ts` automatically runs `CREATE TABLE IF NOT EXISTS` and creates all required tables and indexes:
+* 👤 `users`: Registered users, experience levels, roles, devices, phone numbers.
+* 📜 `activity_logs`: Real-time session and action audit logs.
+* 📚 `topics`: Curriculum learning topics, commands, and tasks.
+* 🧪 `incident_labs`: DevOps incident troubleshooting lab scenarios.
+* ✅ `user_completions`: Tracked question checklist completions per user.
+* 🏆 `user_lab_solutions`: Completed incident lab challenge solutions.
 
 ---
 
-### Option B — Open an Interactive `psql` Shell (Exploration)
+## 💻 Step 3: Connect via pgAdmin 4 (Direct Public IP)
 
-Best when you want an interactive shell to explore schemas, run multiple queries, or inspect indexes.
+Because Cloud SQL has Public IP with Authorized Networks enabled, **you no longer need `kubectl port-forward`!** You can connect directly to the Cloud SQL public IP.
 
-```bash
-kubectl exec -it -n huntdevops huntdevops-postgres-0 -- \
-  psql -U postgres -d huntdevops
-```
-
-You will see the interactive prompt:
-```text
-psql (16.8)
-Type "help" for help.
-
-huntdevops=#
-```
-
-#### Most Useful `psql` Commands Inside the Shell:
-* `\dt`: List all tables in the current schema
-* `\d <table_name>`: Describe table columns, data types, and indexes (e.g. `\d users`)
-* `\di`: List all database indexes
-* `\l`: List all databases on the PostgreSQL server
-* `\q`: Exit the interactive shell
-
----
-
-## 💻 Step 3: Connect via pgAdmin (GUI Desktop Client)
-
-Follow these step-by-step instructions to connect to your live PostgreSQL database on GKE using **pgAdmin 4**:
-
-### 1. Start the Port-Forward Tunnel
-Open a terminal window and run `kubectl port-forward` to map the GKE PostgreSQL service to your local machine:
-
-```bash
-# Recommended on Mac (since port 5432 and 5433 are occupied by local postgres & Docker):
-kubectl port-forward svc/huntdevops-postgres -n huntdevops 5434:5432
-```
-
-> [!NOTE]
-> Keep this terminal window open while working in pgAdmin. The output will confirm:
-> `Forwarding from 127.0.0.1:5434 -> 5432`
-
----
-
-### 2. Retrieve Database Password from Kubernetes Secret
-Run this command in another terminal tab to retrieve the exact password:
-
-```bash
-kubectl -n huntdevops get secret huntdevops-postgres-secret -o jsonpath="{.data.postgres-password}" | base64 -d && echo ""
-```
-
-*Default Password*:
-```text
-HuntDevOpsSecurePassword2026!
-```
-
----
-
-### 3. Register the Server in pgAdmin 4
-
+### 1. Register the Server in pgAdmin 4:
 1. Open **pgAdmin 4** on your computer.
 2. In the left **Browser** tree, right-click **Servers** $\rightarrow$ **Register** $\rightarrow$ **Server...**.
 3. In the **General** tab:
-   * **Name**: `HuntDevOps-GKE` (or any friendly name).
+   * **Name**: `HuntDevOps-CloudSQL`
 4. Click the **Connection** tab and enter:
-   * **Host name/address**: `localhost` (or `127.0.0.1`)
-   * **Port**: `5434`
+   * **Host name/address**: **`35.232.123.246`** (Cloud SQL Public IP)
+   * **Port**: `5432`
    * **Maintenance database**: `huntdevops`
    * **Username**: `postgres`
-   * **Password**: `HuntDevOpsSecurePassword2026!`
+   * **Password**: `HuntDevOpsCloudSQL2026!`
    * Check **Save password?** for convenience.
-
 5. In the **SSL** tab:
-   * **SSL mode**: Set to `Prefer` or `Disable` (traffic through `kubectl port-forward` is already securely tunneled).
+   * **SSL mode**: Set to `Prefer` or `Allow`.
 6. Click **Save**.
 
----
+### 2. Inspect Live Data in pgAdmin:
+Expand: `Servers` $\rightarrow$ `HuntDevOps-CloudSQL` $\rightarrow$ `Databases` $\rightarrow$ `huntdevops` $\rightarrow$ `Schemas` $\rightarrow$ `public` $\rightarrow$ `Tables`.
 
-### 4. Browse Tables & Inspect Application Data
-
-Once connected:
-1. In the left sidebar tree, expand:
-   `Servers` $\rightarrow$ `HuntDevOps-GKE` $\rightarrow$ `Databases` $\rightarrow$ `huntdevops` $\rightarrow$ `Schemas` $\rightarrow$ `public` $\rightarrow$ `Tables`.
-2. You will see all 6 application tables:
-   * 👤 `users`: Registered users, experience levels, roles, devices, phone numbers.
-   * 📜 `activity_logs`: Real-time session and action audit logs.
-   * 📚 `topics`: Curriculum learning topics, commands, and tasks.
-   * 🧪 `incident_labs`: DevOps incident troubleshooting lab scenarios.
-   * ✅ `user_completions`: Tracked question checklist completions per user.
-   * 🏆 `user_lab_solutions`: Completed incident lab challenge solutions.
-3. Right-click on any table (e.g. `users` or `activity_logs`) $\rightarrow$ **View/Edit Data** $\rightarrow$ **All Rows**.
+Right-click `users` or `activity_logs` $\rightarrow$ **View/Edit Data** $\rightarrow$ **All Rows**.
 
 ---
 
-### 5. Run SQL Queries in pgAdmin Query Tool
+## 🖥️ Step 4: Connect via CLI (`psql`)
 
-Click **Tools** $\rightarrow$ **Query Tool** (or press `Alt + Shift + Q` / `Option + Shift + Q`) and run these diagnostic queries:
-
-```sql
--- 1. Inspect all registered users
-SELECT id, username, display_name, email, phone, role, experience_level, status, last_device_os, created_at 
-FROM users 
-ORDER BY created_at DESC;
-
--- 2. View recent system and user activity logs
-SELECT id, username, action_type, title, details, device_os, timestamp 
-FROM activity_logs 
-ORDER BY timestamp DESC 
-LIMIT 20;
-
--- 3. View curriculum topics stored in PostgreSQL
-SELECT id, title, subtitle, updated_at 
-FROM topics;
-
--- 4. Check user lab progress
-SELECT username, lab_id, solved_at 
-FROM user_lab_solutions;
-```
-
-
----
-
-## 💾 Step 4: Backup & Restore (Disaster Recovery)
-
-### 1. Create a Full Database Dump (`pg_dump`)
-Run a single command to stream a compressed SQL dump directly from the pod to your local machine:
+You can query Cloud SQL directly from your terminal using standard `psql`:
 
 ```bash
-kubectl exec -n huntdevops huntdevops-postgres-0 -- \
-  pg_dump -U postgres -d huntdevops -F c > huntdevops_backup_$(date +%Y%m%d_%H%M%S).dump
+# 1. Connect directly to Cloud SQL Public IP:
+PGPASSWORD='HuntDevOpsCloudSQL2026!' psql -h 35.232.123.246 -p 5432 -U postgres -d huntdevops
 
-ls -lh huntdevops_backup_*.dump
+# 2. Run diagnostic queries:
+SELECT id, username, email, role, created_at FROM users ORDER BY created_at DESC;
+SELECT id, username, action_type, title, timestamp FROM activity_logs ORDER BY timestamp DESC LIMIT 5;
 ```
 
-### 2. Restore from Backup (`pg_restore`)
-If restoring into a fresh or rebuilt cluster:
+---
+
+## 🔍 Step 5: Verification & Status Checks
+
+Verify the live Cloud SQL instance status using `gcloud`:
 
 ```bash
-# Copy dump into the pod
-kubectl cp huntdevops_backup_latest.dump huntdevops/huntdevops-postgres-0:/tmp/backup.dump
+# 1. Inspect instance status and IP addresses
+gcloud sql instances list
 
-# Restore schema and data
-kubectl exec -it -n huntdevops huntdevops-postgres-0 -- \
-  pg_restore -U postgres -d huntdevops --clean --if-exists /tmp/backup.dump
+# 2. Check detailed instance health
+gcloud sql instances describe prod-huntdevops-psql-2eecc976 --format="table(name,state,databaseVersion,settings.tier)"
+
+# 3. Test live Backend API connection to Cloud SQL
+curl -s https://vikranthsunkarpally.in/api/health
+```
+
+*Expected JSON Output*:
+```json
+{
+  "status": "online",
+  "database": "PostgreSQL (Connected)",
+  "timestamp": "2026-09-29T14:11:45.549Z"
+}
 ```
 
 ---
 
-## 🛠️ Step 5: Troubleshooting PostgreSQL on GKE
+## ⏭️ Next Step
 
-| Symptom | Cause | Solution |
-| :--- | :--- | :--- |
-| `PersistentVolumeClaim` stays in `Pending` | StorageClass invalid (e.g. `standard-rwd`) | Set `storageClass: standard-rwo` in `values.yaml`. Run `kubectl get sc` to verify available storage classes. |
-| `FATAL: password authentication failed` | Password mismatch between Secret and container | Verify secret key: `kubectl -n huntdevops get secret huntdevops-postgres-secret -o jsonpath="{.data.postgres-password}" \| base64 -d`. |
-| `connection refused` on `huntdevops-postgres:5432` | Pod is not Running or Service selector mismatch | Run `kubectl get pods,svc -n huntdevops -l app.kubernetes.io/component=database`. Verify endpoints with `kubectl get ep huntdevops-postgres -n huntdevops`. |
-| `SSL connection error` in backend | Backend forces SSL on internal unencrypted connection | Set `DB_SSL=false` or configure `ssl: process.env.DB_SSL === 'true'`. In-cluster traffic between pods is encapsulated by GCP VPC. |
-
----
-
-## ⏭️ Next Steps
-
-- 👉 **[09 - Troubleshooting Guide](file:///Users/aarvik/Documents/huntdevops/documents/GCP/GCP1/09-troubleshooting.md)**: Diagnostic matrix and fixes for common Kubernetes, GCP, and pipeline issues.
-- 👉 **[10 - Live Access URLs & Credentials Guide](file:///Users/aarvik/Documents/huntdevops/documents/GCP/GCP1/10-access-urls-and-credentials.md)**: Live access endpoints, authentication tokens, and quick startup scripts.
-
+Proceed to the complete access URLs, credentials, and validation guide:
+👉 **[10 - Live Access URLs & Credentials Guide](file:///Users/aarvik/Documents/huntdevops/documents/GCP/GCP1/10-access-urls-and-credentials.md)**

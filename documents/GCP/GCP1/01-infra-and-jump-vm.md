@@ -21,9 +21,13 @@
    │                                                                                 │
    │   GKE Cluster (prod-huntdevops-gke)                                             │
    │   ├── Location: us-central1-a (Zonal - Free Control Plane)                      │
-   │   ├── Node Pool: 2x e2-standard-2 nodes                                         │
-   │   ├── Workload Identity enabled: project-e746f24e-392a-429f-a4d.svc.id.goog     │
-   │   └── Persistent Disks: standard-rwo provisioner (pd.csi.storage.gke.io)        │
+   │   ├── Node Pool: e2-standard-2 nodes                                            │
+   │   └── Workload Identity enabled: project-e746f24e-392a-429f-a4d.svc.id.goog     │
+   │                                                                                 │
+   │   Google Cloud SQL for PostgreSQL 16 (Managed Database)                         │
+   │   ├── Private IP in VPC via Service Networking (VPC Peering)                    │
+   │   ├── Public IP with Authorized Networks for remote administration              │
+   │   └── Automated Backups + Query Insights                                        │
    │                                                                                 │
    │   Google Artifact Registry                                                      │
    │   └── Docker Repo: huntdevops-repo (us-central1-docker.pkg.dev)                 │
@@ -77,8 +81,9 @@ terraform apply -var-file="terraform.tfvars" -auto-approve
 **Key Resources Provisioned**:
 1. `module.vpc`: Custom VPC, Subnet, Secondary Pod/Service ranges, Cloud Router, and Cloud NAT.
 2. `module.gke`: Zonal GKE cluster `prod-huntdevops-gke` in `us-central1-a` with node pool autoscaling.
-3. `module.artifact_registry`: Docker repository `huntdevops-repo` in region `us-central1`.
-4. `module.iam`: CI/CD Service Account with Artifact Registry Writer and GKE Developer roles.
+3. `module.cloudsql`: Managed Cloud SQL PostgreSQL 16 instance with Private IP (VPC Peering), Public IP, database, and user.
+4. `module.artifact_registry`: Docker repository `huntdevops-repo` in region `us-central1`.
+5. `module.iam`: CI/CD Service Account with Artifact Registry Writer and GKE Developer roles.
 
 ---
 

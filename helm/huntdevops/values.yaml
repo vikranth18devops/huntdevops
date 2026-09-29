@@ -35,7 +35,7 @@ backend:
   env:
     NODE_ENV: production
     PORT: "4000"
-    DB_HOST: huntdevops-postgres
+    DB_HOST: "10.154.0.3"
     DB_PORT: "5432"
     DB_NAME: huntdevops
     DB_USER: postgres
@@ -48,7 +48,7 @@ backend:
       memory: 256Mi
 
 postgresql:
-  enabled: true
+  enabled: false
   image:
     repository: postgres
     tag: "16-alpine"
@@ -61,9 +61,9 @@ postgresql:
     username: postgres
     passwordSecretName: huntdevops-postgres-secret
     passwordSecretKey: postgres-password
-    rawPassword: "HuntDevOpsSecurePassword2026!"
+    rawPassword: "HuntDevOpsCloudSQL2026!"
   persistence:
-    enabled: true
+    enabled: false
     size: 10Gi
     storageClass: standard-rwo
 

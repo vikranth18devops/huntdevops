@@ -4,5 +4,10 @@ environment    = "prod"
 region         = "us-central1"
 zone           = "us-central1-a"
 repository_id  = "huntdevops-repo"
-node_count     = 2
+node_count     = 1
 machine_type   = "e2-standard-2"
+db_name        = "huntdevops"
+db_user        = "postgres"
+db_password    = "HuntDevOpsCloudSQL2026!"
+cloudsql_tier  = "db-g1-small"
+
