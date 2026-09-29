@@ -1,0 +1,244 @@
+================================================================================
+           HUNTDEVOPS GOOGLE CLOUD SQL POSTGRESQL 16 - DETAILS & PSQL QUERIES
+================================================================================
+
+1. CONNECTION CREDENTIALS & ENDPOINTS
+--------------------------------------------------------------------------------
+Instance Name       : prod-huntdevops-psql-2eecc976
+Database Engine     : PostgreSQL 16
+Database Name       : huntdevops
+Master Username     : postgres
+Master Password     : HuntDevOpsCloudSQL2026!
+Private IP (VPC)    : 10.154.0.3       (Used internally by GKE Backend)
+Public IP (Internet): 35.232.123.246   (Used for pgAdmin, DBeaver, and psql CLI)
+Port                : 5432
+SSL Mode            : Prefer / Allow
+
+Quick Terminal Connect:
+PGPASSWORD='HuntDevOpsCloudSQL2026!' psql -h 35.232.123.246 -p 5432 -U postgres -d huntdevops
+
+
+================================================================================
+2. DATABASE EXPLORATION & SCHEMA INSPECTION
+================================================================================
+
+-- List all databases:
+\l
+
+-- Connect to huntdevops database:
+\c huntdevops
+
+-- List all tables:
+\dt
+
+-- Detailed table structure with indexes:
+\d+ users
+\d+ topics
+\d+ incident_labs
+\d+ user_completions
+\d+ user_lab_solutions
+\d+ activity_logs
+
+-- Show table row counts across all HuntDevOps tables:
+SELECT
+    schemaname,
+    relname AS table_name,
+    n_live_tup AS estimated_row_count
+FROM pg_stat_user_tables
+ORDER BY n_live_tup DESC;
+
+
+================================================================================
+3. USERS MANAGEMENT (TABLE: users)
+================================================================================
+
+-- List all users with their roles, experience, and registration date:
+SELECT id, username, display_name, email, phone, role, experience_level, status, created_at
+FROM users
+ORDER BY created_at DESC;
+
+-- Count total registered users by Role (Learner vs Admin):
+SELECT role, COUNT(*) AS total_users
+FROM users
+GROUP BY role;
+
+-- Count users by DevOps Experience Level (Beginner / Intermediate / Senior):
+SELECT experience_level, COUNT(*) AS count
+FROM users
+GROUP BY experience_level
+ORDER BY count DESC;
+
+-- Promote a user to Admin:
+UPDATE users
+SET role = 'Admin'
+WHERE username = '<TARGET_USERNAME>';
+
+-- Update phone number or status for a user:
+UPDATE users
+SET phone = '+1234567890', status = 'Active'
+WHERE username = '<TARGET_USERNAME>';
+
+-- Search user by email or partial username:
+SELECT * FROM users
+WHERE email ILIKE '%@example.com%' OR username ILIKE '%hunt%';
+
+
+================================================================================
+4. LEARNING TOPICS & MODULES (TABLE: topics)
+================================================================================
+
+-- List all curriculum modules/topics:
+SELECT id, title, subtitle, updated_at
+FROM topics
+ORDER BY title ASC;
+
+-- Inspect topic title and top-level JSON keys inside data_json:
+SELECT id, title, jsonb_object_keys(data_json) AS json_key
+FROM topics;
+
+-- Inspect submodules count inside JSONB for each topic:
+SELECT
+    id,
+    title,
+    jsonb_array_length(data_json->'submodules') AS submodules_count
+FROM topics
+WHERE data_json ? 'submodules';
+
+-- Search for specific command or keyword within topic JSON content:
+SELECT id, title
+FROM topics
+WHERE data_json::text ILIKE '%kubectl%';
+
+
+================================================================================
+5. INCIDENT TROUBLESHOOTING LABS (TABLE: incident_labs)
+================================================================================
+
+-- List all incident labs by topic and difficulty:
+SELECT id, title, topic, experience_level, updated_at
+FROM incident_labs
+ORDER BY topic, experience_level;
+
+-- Count labs grouped by Topic (e.g. Kubernetes, Linux, Docker, Terraform):
+SELECT topic, COUNT(*) AS total_labs
+FROM incident_labs
+GROUP BY topic
+ORDER BY total_labs DESC;
+
+-- View lab scenario details and hints from JSONB:
+SELECT
+    id,
+    title,
+    topic,
+    data_json->>'scenario' AS scenario_summary,
+    data_json->>'difficulty' AS difficulty
+FROM incident_labs
+LIMIT 5;
+
+
+================================================================================
+6. USER PROGRESS & LEADERBOARD (TABLES: user_completions, user_lab_solutions)
+================================================================================
+
+-- Top 10 Learners with highest number of completed checklist questions:
+SELECT
+    username,
+    COUNT(question_id) AS questions_completed,
+    MAX(completed_at) AS last_active
+FROM user_completions
+GROUP BY username
+ORDER BY questions_completed DESC
+LIMIT 10;
+
+-- Top 10 Incident Solvers (completed labs leaderboard):
+SELECT
+    username,
+    COUNT(lab_id) AS labs_solved,
+    MAX(solved_at) AS last_lab_solved_at
+FROM user_lab_solutions
+GROUP BY username
+ORDER BY labs_solved DESC
+LIMIT 10;
+
+-- Check a specific user's total progress summary:
+SELECT
+    u.username,
+    u.display_name,
+    u.experience_level,
+    COALESCE(c.completed_count, 0) AS questions_completed,
+    COALESCE(s.labs_solved_count, 0) AS labs_solved
+FROM users u
+LEFT JOIN (
+    SELECT username, COUNT(*) AS completed_count
+    FROM user_completions
+    GROUP BY username
+) c ON u.username = c.username
+LEFT JOIN (
+    SELECT username, COUNT(*) AS labs_solved_count
+    FROM user_lab_solutions
+    GROUP BY username
+) s ON u.username = s.username
+WHERE u.username = '<TARGET_USERNAME>';
+
+
+================================================================================
+7. AUDIT & ACTIVITY LOGS (TABLE: activity_logs)
+================================================================================
+
+-- View the 20 most recent user actions in real-time:
+SELECT id, username, action_type, title, device_os, timestamp
+FROM activity_logs
+ORDER BY timestamp DESC
+LIMIT 20;
+
+-- Filter activity logs for a specific user:
+SELECT action_type, title, details, timestamp
+FROM activity_logs
+WHERE username = '<TARGET_USERNAME>'
+ORDER BY timestamp DESC;
+
+-- Breakdown of user actions by OS / Device:
+SELECT COALESCE(device_os, 'Unknown') AS os, COUNT(*) AS total_actions
+FROM activity_logs
+GROUP BY device_os
+ORDER BY total_actions DESC;
+
+-- Purge logs older than 90 days (database housekeeping):
+DELETE FROM activity_logs
+WHERE timestamp < NOW() - INTERVAL '90 days';
+
+
+================================================================================
+8. DATABASE PERFORMANCE, HEALTH & MAINTENANCE
+================================================================================
+
+-- Check total database size on Cloud SQL disk:
+SELECT pg_size_pretty(pg_database_size('huntdevops')) AS total_db_size;
+
+-- Size of each table and its indexes:
+SELECT
+    relname AS table_name,
+    pg_size_pretty(pg_total_relation_size(relid)) AS total_size,
+    pg_size_pretty(pg_relation_size(relid)) AS data_size,
+    pg_size_pretty(pg_total_relation_size(relid) - pg_relation_size(relid)) AS index_size
+FROM pg_catalog.pg_statio_user_tables
+ORDER BY pg_total_relation_size(relid) DESC;
+
+-- View currently active connections from GKE backend and clients:
+SELECT
+    pid,
+    usename,
+    client_addr,
+    application_name,
+    state,
+    query_start,
+    query
+FROM pg_stat_activity
+WHERE datname = 'huntdevops' AND state != 'idle';
+
+-- Check cache hit ratio (should ideally be > 99%):
+SELECT
+    sum(heap_blks_read) as heap_read,
+    sum(heap_blks_hit)  as heap_hit,
+    (sum(heap_blks_hit) - sum(heap_blks_read)) / sum(heap_blks_hit) as ratio
+FROM pg_statio_user_tables;

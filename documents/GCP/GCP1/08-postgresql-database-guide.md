@@ -272,7 +272,159 @@ curl -s https://vikranthsunkarpally.in/api/health
 
 ---
 
+## 📊 Step 6: Practical PSQL Queries Cheat Sheet for HuntDevOps
+
+Connect to the live instance:
+```bash
+PGPASSWORD='HuntDevOpsCloudSQL2026!' psql -h 35.232.123.246 -p 5432 -U postgres -d huntdevops
+```
+
+### 1. Schema Exploration & Table Stats
+```sql
+-- List all tables:
+\dt
+
+-- Detailed table schema:
+\d+ users
+\d+ topics
+\d+ incident_labs
+\d+ user_completions
+\d+ user_lab_solutions
+\d+ activity_logs
+
+-- Show table row counts across all HuntDevOps tables:
+SELECT
+    schemaname,
+    relname AS table_name,
+    n_live_tup AS estimated_row_count
+FROM pg_stat_user_tables
+ORDER BY n_live_tup DESC;
+```
+
+### 2. Users Management (`users`)
+```sql
+-- List all users with their roles, experience, and registration date:
+SELECT id, username, display_name, email, phone, role, experience_level, status, created_at
+FROM users
+ORDER BY created_at DESC;
+
+-- Count total registered users by Role (Learner vs Admin):
+SELECT role, COUNT(*) AS total_users
+FROM users
+GROUP BY role;
+
+-- Count users by DevOps Experience Level (Beginner / Intermediate / Senior):
+SELECT experience_level, COUNT(*) AS count
+FROM users
+GROUP BY experience_level
+ORDER BY count DESC;
+
+-- Promote a user to Admin:
+UPDATE users
+SET role = 'Admin'
+WHERE username = '<TARGET_USERNAME>';
+
+-- Update phone number or status:
+UPDATE users
+SET phone = '+1234567890', status = 'Active'
+WHERE username = '<TARGET_USERNAME>';
+```
+
+### 3. Curriculum Topics & Modules (`topics`)
+```sql
+-- List all learning modules:
+SELECT id, title, subtitle, updated_at
+FROM topics
+ORDER BY title ASC;
+
+-- Inspect submodules count inside JSONB:
+SELECT
+    id,
+    title,
+    jsonb_array_length(data_json->'submodules') AS submodules_count
+FROM topics
+WHERE data_json ? 'submodules';
+
+-- Search for specific command or keyword within topic content:
+SELECT id, title
+FROM topics
+WHERE data_json::text ILIKE '%kubectl%';
+```
+
+### 4. Incident Labs Troubleshooting (`incident_labs`)
+```sql
+-- List all incident labs by topic and difficulty:
+SELECT id, title, topic, experience_level, updated_at
+FROM incident_labs
+ORDER BY topic, experience_level;
+
+-- Count labs grouped by Topic:
+SELECT topic, COUNT(*) AS total_labs
+FROM incident_labs
+GROUP BY topic
+ORDER BY total_labs DESC;
+```
+
+### 5. Learning Progress & Leaderboard (`user_completions`, `user_lab_solutions`)
+```sql
+-- Top 10 Learners with highest number of completed checklist questions:
+SELECT
+    username,
+    COUNT(question_id) AS questions_completed,
+    MAX(completed_at) AS last_active
+FROM user_completions
+GROUP BY username
+ORDER BY questions_completed DESC
+LIMIT 10;
+
+-- Top 10 Incident Solvers (completed labs):
+SELECT
+    username,
+    COUNT(lab_id) AS labs_solved,
+    MAX(solved_at) AS last_lab_solved_at
+FROM user_lab_solutions
+GROUP BY username
+ORDER BY labs_solved DESC
+LIMIT 10;
+```
+
+### 6. Audit & Activity Logs (`activity_logs`)
+```sql
+-- View the 20 most recent user actions in real-time:
+SELECT id, username, action_type, title, device_os, timestamp
+FROM activity_logs
+ORDER BY timestamp DESC
+LIMIT 20;
+
+-- Breakdown of user actions by OS / Device:
+SELECT COALESCE(device_os, 'Unknown') AS os, COUNT(*) AS total_actions
+FROM activity_logs
+GROUP BY device_os
+ORDER BY total_actions DESC;
+```
+
+### 7. Performance & Database Health
+```sql
+-- Database and table sizes:
+SELECT pg_size_pretty(pg_database_size('huntdevops')) AS total_db_size;
+
+SELECT
+    relname AS table_name,
+    pg_size_pretty(pg_total_relation_size(relid)) AS total_size,
+    pg_size_pretty(pg_relation_size(relid)) AS data_size
+FROM pg_catalog.pg_statio_user_tables
+ORDER BY pg_total_relation_size(relid) DESC;
+
+-- View currently active connections:
+SELECT pid, usename, client_addr, application_name, state, query
+FROM pg_stat_activity
+WHERE datname = 'huntdevops' AND state != 'idle';
+```
+
+---
+
 ## ⏭️ Next Step
 
 Proceed to the complete access URLs, credentials, and validation guide:
 👉 **[10 - Live Access URLs & Credentials Guide](file:///Users/aarvik/Documents/huntdevops/documents/GCP/GCP1/10-access-urls-and-credentials.md)**
+
