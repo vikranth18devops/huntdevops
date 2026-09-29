@@ -21,6 +21,7 @@ import type { Topic } from '../data/sheetData';
 import { ToolLogo } from './TechLogos';
 import { CertificateModal, type CertificateData } from './CertificateModal';
 import { issueCertificateApi } from '../services/api';
+import { calculateDynamicGlobalRank } from '../utils/activityStore';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -493,8 +494,19 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               <span className="text-[10px] font-bold uppercase tracking-wider">Rank</span>
               <TrendingUp className="h-3.5 w-3.5 text-indigo-600" />
             </div>
-            <div className="text-xl font-black text-slate-900">#14 <span className="text-[10px] text-slate-500 font-normal">Global</span></div>
-            <div className="text-[10px] text-indigo-700 font-semibold">Top 5%</div>
+            {(() => {
+              const { rank: globalRank, topPercent } = calculateDynamicGlobalRank(user.username, xp);
+              return (
+                <>
+                  <div className="text-xl font-black text-slate-900">
+                    #{globalRank} <span className="text-[10px] text-slate-500 font-normal">Global</span>
+                  </div>
+                  <div className="text-[10px] text-indigo-700 font-semibold">
+                    {globalRank === 1 ? 'Top 1% Champion' : `Top ${topPercent}%`}
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
 

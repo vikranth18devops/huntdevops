@@ -244,3 +244,57 @@ export function updateUserStreakOnLogin(username: string): number {
   }
 }
 
+/**
+ * Calculates a learner's dynamic global rank position based on live XP in the system.
+ * XP Formula: 25 XP per checklist item + 150 XP per incident lab resolved.
+ */
+export function calculateDynamicGlobalRank(username: string, currentUserXP: number): { rank: number; totalUsers: number; topPercent: number } {
+  try {
+    const cleanUser = (username || 'learner').toLowerCase().trim();
+    const savedStore = localStorage.getItem('huntdevops_user_store');
+    let users: UserRecord[] = [];
+    if (savedStore) {
+      try {
+        users = JSON.parse(savedStore);
+      } catch {}
+    }
+
+    // Map each registered learner to their current calculated XP
+    const userScores = (users || []).map(u => {
+      const uName = (u.username || '').toLowerCase().trim();
+      let uXP = 0;
+      if (uName === cleanUser) {
+        uXP = currentUserXP;
+      } else {
+        try {
+          const uComp = localStorage.getItem(`huntdevops_completed_${uName}`);
+          const uSolv = localStorage.getItem(`huntdevops_solved_${uName}`);
+          const compCount = uComp ? JSON.parse(uComp).length : 0;
+          const solvCount = uSolv ? JSON.parse(uSolv).length : 0;
+          uXP = (compCount * 25) + (solvCount * 150);
+        } catch {
+          uXP = 0;
+        }
+      }
+      return { username: uName, xp: uXP };
+    });
+
+    // Ensure active learner is in the scoring list
+    if (!userScores.some(u => u.username === cleanUser)) {
+      userScores.push({ username: cleanUser, xp: currentUserXP });
+    }
+
+    // Sort descending: highest XP gets Rank #1
+    userScores.sort((a, b) => b.xp - a.xp);
+
+    const rankIdx = userScores.findIndex(u => u.username === cleanUser);
+    const rank = rankIdx >= 0 ? rankIdx + 1 : 1;
+    const totalUsers = Math.max(1, userScores.length);
+    const topPercent = Math.max(1, Math.round((rank / totalUsers) * 100));
+
+    return { rank, totalUsers, topPercent };
+  } catch {
+    return { rank: 1, totalUsers: 1, topPercent: 100 };
+  }
+}
+

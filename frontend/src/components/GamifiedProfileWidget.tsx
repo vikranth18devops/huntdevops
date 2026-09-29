@@ -1,5 +1,6 @@
 import React from 'react';
 import { Award, Zap, Flame, Shield, ChevronRight } from 'lucide-react';
+import { calculateDynamicGlobalRank } from '../utils/activityStore';
 
 interface GamifiedProfileWidgetProps {
   completedCount: number;
@@ -19,6 +20,8 @@ export const GamifiedProfileWidget: React.FC<GamifiedProfileWidgetProps> = ({
   const nextLevelXp = level * 500;
   const currentLevelXp = xp % 500;
   const percent = Math.min(100, Math.round((currentLevelXp / 500) * 100));
+
+  const { rank: globalRank } = calculateDynamicGlobalRank(user?.username || 'learner', xp);
 
   const getTitleRank = (lvl: number) => {
     if (lvl >= 5) return 'Cloud Native Architect';
@@ -94,8 +97,8 @@ export const GamifiedProfileWidget: React.FC<GamifiedProfileWidgetProps> = ({
           <span className="font-semibold text-muted-foreground text-[11px]">3 Badges Unlocked</span>
         </div>
 
-        <span className="text-cyan-400 font-bold text-[11px] flex items-center">
-          Rank #14 <ChevronRight className="h-3.5 w-3.5 ml-0.5" />
+        <span className="text-cyan-600 font-bold text-[11px] flex items-center">
+          Rank #{globalRank} <ChevronRight className="h-3.5 w-3.5 ml-0.5" />
         </span>
       </div>
 
