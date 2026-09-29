@@ -371,13 +371,13 @@ export function getUserReportMetrics(user: UserRecord, topics: Topic[]): UserRep
     a => a.username.toLowerCase() === user.username.toLowerCase()
   );
 
-  // 4. COMPUTE REAL MODULE-BY-MODULE ASSESSMENT BREAKDOWN
+  // 4. COMPUTE REAL MODULE-BY-MODULE ASSESSMENT BREAKDOWN (ONLY ENABLED MODULES)
   const enabledTopics = topics.filter(t => !t.disabled);
   const totalEnabledCount = enabledTopics.length;
 
-  const moduleScores = topics.map((topic) => {
+  const moduleScores = enabledTopics.map((topic) => {
     const topicItemIds: string[] = [];
-    topic.sections.forEach(s => {
+    topic.sections.filter(s => !s.disabled).forEach(s => {
       s.commands.forEach(c => {
         c.items.forEach(i => {
           topicItemIds.push(i.id);
@@ -403,13 +403,13 @@ export function getUserReportMetrics(user: UserRecord, topics: Topic[]): UserRep
       correctCount,
       totalQuestions,
       lastAttemptDate,
-      disabled: !!topic.disabled
+      disabled: false
     };
   });
 
   // 5. COMPUTE REAL VERIFIABLE CERTIFICATES FOR COMPLETED / PASSED MODULES
   const certificates: CertificateData[] = moduleScores
-    .filter(m => !m.disabled && (m.passed || (m.correctCount > 0 && m.correctCount === m.totalQuestions)))
+    .filter(m => m.passed || (m.correctCount > 0 && m.correctCount === m.totalQuestions))
     .map(m => {
       const cleanTopic = (m.topicId || 'MOD').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
       const hash = Math.abs((user.username + m.topicId).split('').reduce((acc, char) => (acc << 5) - acc + char.charCodeAt(0), 0)).toString(16).toUpperCase().slice(0, 6);
@@ -426,8 +426,8 @@ export function getUserReportMetrics(user: UserRecord, topics: Topic[]): UserRep
     });
 
   // 6. AGGREGATE REAL METRICS (BASED ON ENABLED MODULES COUNT FROM ADMIN PANEL)
-  const modulesPassedCount = moduleScores.filter(m => !m.disabled && m.passed).length;
-  const attemptedModules = moduleScores.filter(m => !m.disabled && m.correctCount > 0);
+  const modulesPassedCount = moduleScores.filter(m => m.passed).length;
+  const attemptedModules = moduleScores.filter(m => m.correctCount > 0);
   const avgPassAccuracy = attemptedModules.length > 0
     ? Math.round(attemptedModules.reduce((acc, m) => acc + m.scorePercent, 0) / attemptedModules.length)
     : 0;
