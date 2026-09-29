@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { X, Award, Flame, Zap, CheckCircle2, Lock, Shield } from 'lucide-react';
 import type { Topic } from '../data/sheetData';
 import { ToolLogo } from './TechLogos';
+import { CertificateModal, type CertificateData } from './CertificateModal';
 
 interface AchievementsModalProps {
   isOpen: boolean;
@@ -22,6 +23,8 @@ export const AchievementsModal: React.FC<AchievementsModalProps> = ({
   user,
   streakCount = 1
 }) => {
+  const [selectedCert, setSelectedCert] = useState<CertificateData | null>(null);
+
   if (!isOpen) return null;
 
   const xp = completedIds.size * 25 + solvedIds.size * 150;
@@ -257,9 +260,30 @@ export const AchievementsModal: React.FC<AchievementsModalProps> = ({
                     <div className="flex items-center justify-between gap-1">
                       <span className={`text-xs truncate ${styles.titleColor}`}>{b.badgeTitle}</span>
                       {b.isUnlocked ? (
-                        <span className={`px-2 py-0.5 rounded-full text-[9px] uppercase tracking-wider ${styles.tagBg} shrink-0 flex items-center gap-1`}>
-                          <CheckCircle2 className="h-3 w-3 text-white" /> Unlocked
-                        </span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            onClick={() => {
+                              const cleanTopic = (b.topicId || 'MOD').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+                              const hash = Math.abs(((user?.username || 'user') + b.topicId).split('').reduce((acc, char) => (acc << 5) - acc + char.charCodeAt(0), 0)).toString(16).toUpperCase().slice(0, 6);
+                              setSelectedCert({
+                                certificateCode: `HD-${cleanTopic}-${hash}`,
+                                recipientName: user?.displayName || user?.username || 'DevOps Engineer',
+                                username: user?.username || 'user',
+                                topicId: b.topicId,
+                                topicTitle: b.title,
+                                scorePercent: 100,
+                                issuedAt: new Date().toISOString()
+                              });
+                            }}
+                            className="px-1.5 py-0.5 rounded-md text-[8px] font-black bg-amber-500 hover:bg-amber-600 text-white transition-colors cursor-pointer shadow-xs"
+                            title="Inspect and Print Official Certificate"
+                          >
+                            🎓 Cert
+                          </button>
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] uppercase tracking-wider ${styles.tagBg} shrink-0 flex items-center gap-1`}>
+                            <CheckCircle2 className="h-3 w-3 text-white" /> Unlocked
+                          </span>
+                        </div>
                       ) : (
                         <span className="px-2 py-0.5 rounded-full text-[9px] uppercase font-bold tracking-wider bg-slate-200 text-slate-600 shrink-0 flex items-center gap-1">
                           <Lock className="h-2.5 w-2.5 text-slate-500" /> Locked
@@ -286,6 +310,13 @@ export const AchievementsModal: React.FC<AchievementsModalProps> = ({
         </div>
 
       </div>
+
+      {/* RENDER CERTIFICATE MODAL */}
+      <CertificateModal
+        isOpen={!!selectedCert}
+        onClose={() => setSelectedCert(null)}
+        certificate={selectedCert}
+      />
     </div>
   );
 };

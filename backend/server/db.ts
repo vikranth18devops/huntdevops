@@ -111,6 +111,17 @@ export async function initDatabase() {
         updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       );
 
+      CREATE TABLE IF NOT EXISTS user_certificates (
+        id VARCHAR(100) PRIMARY KEY,
+        username VARCHAR(100) NOT NULL,
+        topic_id VARCHAR(100) NOT NULL,
+        topic_title VARCHAR(200) NOT NULL,
+        score_percent INT DEFAULT 100,
+        certificate_code VARCHAR(100) UNIQUE NOT NULL,
+        issued_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(username, topic_id)
+      );
+
       ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(50);
       ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
 
@@ -118,6 +129,8 @@ export async function initDatabase() {
       CREATE INDEX IF NOT EXISTS idx_users_exp_level ON users(experience_level);
       CREATE INDEX IF NOT EXISTS idx_completions_user ON user_completions(username);
       CREATE INDEX IF NOT EXISTS idx_users_last_active ON users(last_active_at);
+      CREATE INDEX IF NOT EXISTS idx_cert_username ON user_certificates(username);
+      CREATE INDEX IF NOT EXISTS idx_cert_code ON user_certificates(certificate_code);
     `);
 
     client.release();

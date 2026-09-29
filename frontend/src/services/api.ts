@@ -325,3 +325,65 @@ export async function sendUserHeartbeatApi(username: string): Promise<void> {
   }
 }
 
+// ----------------------------------------------------------------------
+// User Certificates (PostgreSQL user_certificates table)
+// ----------------------------------------------------------------------
+export interface UserCertificate {
+  id: string;
+  username: string;
+  displayName?: string;
+  topicId: string;
+  topicTitle: string;
+  scorePercent: number;
+  certificateCode: string;
+  issuedAt: string;
+}
+
+export async function fetchUserCertificatesApi(username: string): Promise<UserCertificate[]> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/certificates/${encodeURIComponent(username)}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data)) return data;
+    }
+  } catch (err) {
+    console.warn('API error fetching user certificates:', err);
+  }
+  return [];
+}
+
+export async function fetchAllCertificatesApi(): Promise<UserCertificate[]> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/certificates`);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data)) return data;
+    }
+  } catch (err) {
+    console.warn('API error fetching all certificates:', err);
+  }
+  return [];
+}
+
+export async function issueCertificateApi(params: {
+  username: string;
+  topicId: string;
+  topicTitle: string;
+  scorePercent?: number;
+}): Promise<UserCertificate | null> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/certificates`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params)
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (err) {
+    console.warn('API error issuing certificate:', err);
+  }
+  return null;
+}
+
+

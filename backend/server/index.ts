@@ -693,6 +693,108 @@ app.post('/api/users/heartbeat', async (req, res) => {
 });
 
 // -------------------------------------------------------------
+// 9. User Certificates Endpoints (Cloud SQL & Verification)
+// -------------------------------------------------------------
+app.get('/api/certificates', async (req, res) => {
+  if (getIsPostgresAvailable()) {
+    try {
+      const result = await pool.query(`
+        SELECT c.id, c.username, u.display_name as "displayName", c.topic_id as "topicId",
+               c.topic_title as "topicTitle", c.score_percent as "scorePercent",
+               c.certificate_code as "certificateCode",
+               TO_CHAR(c.issued_at, 'YYYY-MM-DD HH24:MI:SS') as "issuedAt"
+        FROM user_certificates c
+        LEFT JOIN users u ON LOWER(c.username) = LOWER(u.username)
+        ORDER BY c.issued_at DESC
+      `);
+      return res.json(result.rows);
+    } catch (err: any) {
+      console.error('Error fetching certificates:', err);
+      return res.status(500).json({ error: err.message });
+    }
+  }
+  return res.json([]);
+});
+
+app.get('/api/certificates/:username', async (req, res) => {
+  const { username } = req.params;
+  if (getIsPostgresAvailable()) {
+    try {
+      const result = await pool.query(`
+        SELECT id, username, topic_id as "topicId", topic_title as "topicTitle",
+               score_percent as "scorePercent", certificate_code as "certificateCode",
+               TO_CHAR(issued_at, 'YYYY-MM-DD HH24:MI:SS') as "issuedAt"
+        FROM user_certificates
+        WHERE LOWER(username) = LOWER($1)
+        ORDER BY issued_at DESC
+      `, [username]);
+      return res.json(result.rows);
+    } catch (err: any) {
+      console.error('Error fetching user certificates:', err);
+      return res.status(500).json({ error: err.message });
+    }
+  }
+  return res.json([]);
+});
+
+app.post('/api/certificates', async (req, res) => {
+  const { username, topicId, topicTitle, scorePercent } = req.body;
+  if (!username || !topicId) {
+    return res.status(400).json({ error: 'Username and topicId are required' });
+  }
+
+  const cleanTopic = (topicId || 'MOD').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+  const randomHex = Math.random().toString(36).substr(2, 6).toUpperCase();
+  const certCode = `HD-${cleanTopic}-${randomHex}`;
+  const certId = `cert_${Date.now()}_${randomHex}`;
+  const score = scorePercent !== undefined ? parseInt(scorePercent, 10) : 100;
+
+  if (getIsPostgresAvailable()) {
+    try {
+      const result = await pool.query(`
+        INSERT INTO user_certificates (id, username, topic_id, topic_title, score_percent, certificate_code, issued_at)
+        VALUES ($1, $2, $3, $4, $5, $6, NOW())
+        ON CONFLICT (username, topic_id) DO UPDATE SET
+          score_percent = GREATEST(user_certificates.score_percent, EXCLUDED.score_percent),
+          topic_title = EXCLUDED.topic_title
+        RETURNING id, username, topic_id as "topicId", topic_title as "topicTitle",
+                  score_percent as "scorePercent", certificate_code as "certificateCode",
+                  TO_CHAR(issued_at, 'YYYY-MM-DD HH24:MI:SS') as "issuedAt"
+      `, [certId, username.trim(), topicId.trim(), topicTitle || topicId, score, certCode]);
+
+      // Log activity
+      await pool.query(
+        `INSERT INTO activity_logs (id, username, action_type, title, details)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [
+          `act_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+          username.trim(),
+          'CERTIFICATE_EARNED',
+          `Earned Certificate for ${topicTitle || topicId}`,
+          `Credential Code: ${result.rows[0].certificateCode} | Final Score: ${score}%`
+        ]
+      ).catch(() => {});
+
+      return res.status(201).json(result.rows[0]);
+    } catch (err: any) {
+      console.error('Error issuing certificate in PostgreSQL:', err);
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
+  // Fallback memory object
+  return res.status(201).json({
+    id: certId,
+    username,
+    topicId,
+    topicTitle: topicTitle || topicId,
+    scorePercent: score,
+    certificateCode: certCode,
+    issuedAt: new Date().toISOString()
+  });
+});
+
+// -------------------------------------------------------------
 // 9. Server Boot & Auto Real-Time Sync
 // -------------------------------------------------------------
 initDatabase().then(async () => {

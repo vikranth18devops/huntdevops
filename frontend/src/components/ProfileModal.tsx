@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, 
   LogOut, 
@@ -13,10 +13,14 @@ import {
   Phone, 
   User as UserIcon,
   Check,
-  Lock
+  Lock,
+  Sparkles,
+  ExternalLink
 } from 'lucide-react';
 import type { Topic } from '../data/sheetData';
 import { ToolLogo } from './TechLogos';
+import { CertificateModal, type CertificateData } from './CertificateModal';
+import { issueCertificateApi } from '../services/api';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -55,6 +59,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [phone, setPhone] = useState(user.phone || '');
   const [experienceLevel, setExperienceLevel] = useState<'Beginner' | 'Intermediate' | 'Advanced'>(user.experienceLevel || 'Beginner');
   const [savedMessage, setSavedMessage] = useState(false);
+  const [selectedCert, setSelectedCert] = useState<CertificateData | null>(null);
 
   const xp = completedCount * 25 + solvedCount * 150;
   const level = Math.floor(xp / 500) + 1;
@@ -98,6 +103,36 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       percent: Math.round((comp / (items.length || 1)) * 100)
     };
   });
+
+  // Automatically compute certificates for all 100% completed modules
+  const earnedCertificates: CertificateData[] = BADGES.filter(b => b.isUnlocked).map(b => {
+    const cleanTopic = (b.topicId || 'MOD').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+    const hash = Math.abs((user.username + b.topicId).split('').reduce((acc, char) => (acc << 5) - acc + char.charCodeAt(0), 0)).toString(16).toUpperCase().slice(0, 6);
+    const certificateCode = `HD-${cleanTopic}-${hash}`;
+    return {
+      certificateCode,
+      recipientName: user.displayName || user.username,
+      username: user.username,
+      topicId: b.topicId,
+      topicTitle: b.title,
+      scorePercent: 100,
+      issuedAt: new Date().toISOString()
+    };
+  });
+
+  // Sync earned certificates to PostgreSQL Cloud SQL Database
+  useEffect(() => {
+    if (earnedCertificates.length > 0 && user?.username) {
+      earnedCertificates.forEach(cert => {
+        issueCertificateApi({
+          username: user.username,
+          topicId: cert.topicId,
+          topicTitle: cert.topicTitle,
+          scorePercent: 100
+        });
+      });
+    }
+  }, [earnedCertificates.length, user?.username]);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -463,6 +498,44 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           </div>
         </div>
 
+        {/* EARNED CERTIFICATES SECTION */}
+        {earnedCertificates.length > 0 && (
+          <div className="space-y-3 pt-2 border-t border-slate-100">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-amber-700 flex items-center gap-1.5">
+                <Sparkles className="h-4 w-4 text-amber-500" /> Earned Certificates ({earnedCertificates.length} Issued)
+              </h3>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
+              {earnedCertificates.map((cert) => (
+                <div 
+                  key={cert.certificateCode}
+                  className="rounded-2xl border border-amber-300/80 bg-gradient-to-br from-amber-50/70 via-yellow-50/40 to-slate-50 p-3 flex items-center justify-between gap-3 shadow-sm hover:shadow-md transition-all"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-600 shrink-0">
+                      <Award className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-black text-slate-900 truncate">{cert.topicTitle} Mastery</div>
+                      <div className="text-[10px] font-mono text-amber-800/90 font-bold">{cert.certificateCode}</div>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setSelectedCert(cert)}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white text-[10px] font-black shadow-sm shrink-0 transition-all cursor-pointer"
+                  >
+                    <span>View Cert</span>
+                    <ExternalLink className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* MASTERY BADGES SECTION */}
         {topics.length > 0 && (
           <div className="space-y-3 pt-2 border-t border-slate-100">
@@ -475,6 +548,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-60 overflow-y-auto pr-1 scrollbar-thin">
               {BADGES.map((b) => {
                 const styles = getBadgeStyles(b.topicId, b.isUnlocked);
+                const matchingCert = earnedCertificates.find(c => c.topicId === b.topicId);
+
                 return (
                   <div
                     key={b.topicId}
@@ -488,9 +563,20 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                       <div className="flex items-center justify-between gap-1">
                         <span className={`text-xs truncate ${styles.titleColor}`}>{b.badgeTitle}</span>
                         {b.isUnlocked ? (
-                          <span className={`px-2 py-0.5 rounded-full text-[9px] uppercase tracking-wider ${styles.tagBg} shrink-0 flex items-center gap-1`}>
-                            <CheckCircle2 className="h-3 w-3 text-white" /> Unlocked
-                          </span>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {matchingCert && (
+                              <button
+                                onClick={() => setSelectedCert(matchingCert)}
+                                className="px-1.5 py-0.5 rounded-md text-[8px] font-black bg-amber-500 text-white hover:bg-amber-600 transition-colors flex items-center gap-0.5 cursor-pointer shadow-xs"
+                                title="View Official Certificate"
+                              >
+                                <span>🎓 Cert</span>
+                              </button>
+                            )}
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] uppercase tracking-wider ${styles.tagBg} shrink-0 flex items-center gap-1`}>
+                              <CheckCircle2 className="h-3 w-3 text-white" /> Unlocked
+                            </span>
+                          </div>
                         ) : (
                           <span className="px-2 py-0.5 rounded-full text-[9px] uppercase font-bold tracking-wider bg-slate-200 text-slate-600 shrink-0 flex items-center gap-1">
                             <Lock className="h-2.5 w-2.5 text-slate-500" /> Locked
@@ -524,7 +610,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               onLogout();
               onClose();
             }}
-            className="w-full py-2.5 rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 font-bold text-xs hover:bg-rose-100 transition-all flex items-center justify-center gap-2"
+            className="w-full py-2.5 rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 font-bold text-xs hover:bg-rose-100 transition-all flex items-center justify-center gap-2 cursor-pointer"
           >
             <LogOut className="h-4 w-4 text-rose-600" />
             <span>Sign Out</span>
@@ -532,6 +618,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         </div>
 
       </div>
+
+      {/* Render Certificate Modal */}
+      <CertificateModal
+        isOpen={!!selectedCert}
+        onClose={() => setSelectedCert(null)}
+        certificate={selectedCert}
+      />
     </div>
   );
 };
