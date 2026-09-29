@@ -135,6 +135,18 @@ export async function saveTopicsApi(topics: any[]) {
   }
 }
 
+export async function deleteTopicApi(topicId: string) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/topics/${encodeURIComponent(topicId)}`, {
+      method: 'DELETE'
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('API error deleting topic from Cloud SQL:', err);
+    return false;
+  }
+}
+
 // ----------------------------------------------------------------------
 // Incident Labs (PostgreSQL incident_labs table)
 // ----------------------------------------------------------------------
@@ -161,6 +173,18 @@ export async function saveLabsApi(labs: any[]) {
     return res.ok;
   } catch (err) {
     console.warn('API error saving labs to Cloud SQL:', err);
+    return false;
+  }
+}
+
+export async function deleteLabApi(labId: string) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/labs/${encodeURIComponent(labId)}`, {
+      method: 'DELETE'
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('API error deleting lab from Cloud SQL:', err);
     return false;
   }
 }
@@ -274,6 +298,16 @@ export async function purgeActivityLogsApi() {
     const res = await fetch(`${API_BASE_URL}/logs`, { method: 'DELETE' });
     return res.ok;
   } catch {
+    return false;
+  }
+}
+
+export async function deleteActivityLogApi(logId: string) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/logs/${encodeURIComponent(logId)}`, { method: 'DELETE' });
+    return res.ok;
+  } catch (err) {
+    console.warn('API error deleting activity log:', err);
     return false;
   }
 }

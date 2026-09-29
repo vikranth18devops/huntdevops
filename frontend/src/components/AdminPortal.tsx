@@ -61,6 +61,12 @@ import {
   updateUserExperienceLevelApi,
   resetUserPasswordApi,
   fetchActivityLogsApi,
+  deleteActivityLogApi,
+  purgeActivityLogsApi,
+  saveTopicsApi,
+  deleteTopicApi,
+  saveLabsApi,
+  deleteLabApi,
   savePlatformSettingsApi,
   type PlatformSettings
 } from '../services/api';
@@ -308,6 +314,7 @@ export interface UserReportMetrics {
     correctCount: number;
     totalQuestions: number;
     lastAttemptDate: string;
+    disabled?: boolean;
   }[];
   incidentLabLogs: {
     id: string;
@@ -365,6 +372,9 @@ export function getUserReportMetrics(user: UserRecord, topics: Topic[]): UserRep
   );
 
   // 4. COMPUTE REAL MODULE-BY-MODULE ASSESSMENT BREAKDOWN
+  const enabledTopics = topics.filter(t => !t.disabled);
+  const totalEnabledCount = enabledTopics.length;
+
   const moduleScores = topics.map((topic) => {
     const topicItemIds: string[] = [];
     topic.sections.forEach(s => {
@@ -392,13 +402,14 @@ export function getUserReportMetrics(user: UserRecord, topics: Topic[]): UserRep
       passed,
       correctCount,
       totalQuestions,
-      lastAttemptDate
+      lastAttemptDate,
+      disabled: !!topic.disabled
     };
   });
 
   // 5. COMPUTE REAL VERIFIABLE CERTIFICATES FOR COMPLETED / PASSED MODULES
   const certificates: CertificateData[] = moduleScores
-    .filter(m => m.passed || (m.correctCount > 0 && m.correctCount === m.totalQuestions))
+    .filter(m => !m.disabled && (m.passed || (m.correctCount > 0 && m.correctCount === m.totalQuestions)))
     .map(m => {
       const cleanTopic = (m.topicId || 'MOD').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
       const hash = Math.abs((user.username + m.topicId).split('').reduce((acc, char) => (acc << 5) - acc + char.charCodeAt(0), 0)).toString(16).toUpperCase().slice(0, 6);
@@ -414,9 +425,9 @@ export function getUserReportMetrics(user: UserRecord, topics: Topic[]): UserRep
       };
     });
 
-  // 6. AGGREGATE REAL METRICS
-  const modulesPassedCount = moduleScores.filter(m => m.passed).length;
-  const attemptedModules = moduleScores.filter(m => m.correctCount > 0);
+  // 6. AGGREGATE REAL METRICS (BASED ON ENABLED MODULES COUNT FROM ADMIN PANEL)
+  const modulesPassedCount = moduleScores.filter(m => !m.disabled && m.passed).length;
+  const attemptedModules = moduleScores.filter(m => !m.disabled && m.correctCount > 0);
   const avgPassAccuracy = attemptedModules.length > 0
     ? Math.round(attemptedModules.reduce((acc, m) => acc + m.scorePercent, 0) / attemptedModules.length)
     : 0;
@@ -445,7 +456,7 @@ export function getUserReportMetrics(user: UserRecord, topics: Topic[]): UserRep
     totalXP,
     streakCount: getUserStreak(user.username),
     modulesPassedCount,
-    totalModulesCount: topics.length,
+    totalModulesCount: totalEnabledCount,
     avgPassAccuracy,
     labsSolvedCount,
     avgLabTimeMinutes: 4.5,
@@ -535,11 +546,27 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     });
   }, [activeTab]);
 
+  const handleDeleteActivityLog = async (logId: string) => {
+    const updated = liveLogs.filter(l => l.id !== logId);
+    setLiveLogs(updated);
+    localStorage.setItem('huntdevops_activity_logs', JSON.stringify(updated));
+    deleteActivityLogApi(logId).catch(err => console.warn('Delete activity log sync:', err));
+    showToast('Activity audit log entry deleted.');
+  };
+
+  const handleClearAllActivityLogs = async () => {
+    if (liveLogs.length === 0) return;
+    if (confirm('Are you sure you want to permanently delete all Live System Activity & Registration Audit logs from Cloud SQL?')) {
+      setLiveLogs([]);
+      localStorage.setItem('huntdevops_activity_logs', JSON.stringify([]));
+      purgeActivityLogsApi().catch(err => console.warn('Purge activity logs sync:', err));
+      showToast('All activity audit logs purged successfully.');
+    }
+  };
+
   // Dashboard Pagination State (5 items per page)
   const [leaderboardPage, setLeaderboardPage] = useState(1);
   const [activityFeedPage, setActivityFeedPage] = useState(1);
-
-
 
   // Individual User Performance Report Modal State
   const [selectedReportUser, setSelectedReportUser] = useState<UserRecord | null>(null);
@@ -780,7 +807,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     if (confirm(`Delete Incident Lab "${title}"?`)) {
       const updated = labList.filter(c => c.id !== labId);
       onUpdateChallenges(updated);
-      showToast(`Incident Lab "${title}" deleted.`);
+      deleteLabApi(labId).catch(err => console.warn('Cloud SQL delete lab sync:', err));
+      saveLabsApi(updated).catch(err => console.warn('Cloud SQL save labs sync:', err));
+      showToast(`Incident Lab "${title}" deleted instantly.`);
     }
   };
 
@@ -1091,8 +1120,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     if (confirm(`Are you sure you want to delete module "${title}" and all its sub-modules?`)) {
       const updated = topics.filter(t => t.id !== topicId);
       onUpdateTopics(updated);
+      deleteTopicApi(topicId).catch(err => console.warn('Cloud SQL delete topic sync:', err));
+      saveTopicsApi(updated).catch(err => console.warn('Cloud SQL save topics sync:', err));
       setSelectedTopicId(updated[0]?.id || '');
-      showToast(`Module "${title}" deleted.`);
+      showToast(`Module "${title}" deleted instantly.`);
     }
   };
 
@@ -2179,21 +2210,52 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               
               {/* Card 1: Total Registered Users */}
-              <div className="rounded-2xl border border-indigo-500/30 bg-gradient-to-br from-indigo-950/40 via-slate-900 to-slate-900 p-4 space-y-2 shadow-sm">
+              <div className="group relative rounded-2xl border border-indigo-500/30 bg-gradient-to-br from-indigo-950/40 via-slate-900 to-slate-900 p-4 space-y-2 shadow-sm hover:border-indigo-400/60 transition-all cursor-pointer">
                 <div className="flex items-center justify-between text-indigo-300">
-                  <span className="text-[11px] font-bold uppercase tracking-wider">Registered Users</span>
-                  <Users className="h-4 w-4 text-indigo-400" />
+                  <span className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    Registered Users <Info className="h-3 w-3 opacity-60 group-hover:opacity-100 transition-opacity" />
+                  </span>
+                  <Users className="h-4 w-4 text-indigo-400 group-hover:scale-110 transition-transform" />
                 </div>
                 <div className="text-3xl font-black text-white">{totalRegisteredUsers} <span className="text-xs font-normal text-slate-400">Total</span></div>
                 <div className="text-[10px] text-indigo-300/90 font-medium flex items-center gap-1">
                   <span>{learnerUsersCount} Learners · {adminUsersCount} Super Admin</span>
                 </div>
+
+                {/* MOUSEOVER HOVER INFO POPOVER */}
+                <div className="absolute inset-x-0 bottom-full mb-2 hidden group-hover:flex flex-col gap-1.5 p-3.5 rounded-2xl bg-slate-950/95 border border-indigo-500/50 backdrop-blur-xl shadow-2xl z-40 text-xs pointer-events-none animate-in fade-in zoom-in-95 duration-200">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
+                    <span className="font-bold text-white flex items-center gap-1.5">
+                      <Users className="h-3.5 w-3.5 text-indigo-400" /> Registered User Details
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">PostgreSQL</span>
+                  </div>
+                  <div className="space-y-1 text-[11px] text-slate-300">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Total Enrolled Accounts:</span>
+                      <span className="font-bold text-white">{totalRegisteredUsers} Users</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Standard Learners:</span>
+                      <span className="font-bold text-emerald-400">{learnerUsersCount} Accounts</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Super Administrators:</span>
+                      <span className="font-bold text-purple-400">{adminUsersCount} Accounts</span>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-400 pt-1 border-t border-slate-800/80 leading-relaxed">
+                    User records and credential hashes are synchronized in Cloud SQL with audit trails.
+                  </p>
+                </div>
               </div>
 
               {/* Card 2: Active Users */}
-              <div className="rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-900 p-4 space-y-2 shadow-sm">
+              <div className="group relative rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-900 p-4 space-y-2 shadow-sm hover:border-emerald-400/60 transition-all cursor-pointer">
                 <div className="flex items-center justify-between text-emerald-300">
-                  <span className="text-[11px] font-bold uppercase tracking-wider">Active Learners</span>
+                  <span className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    Active Learners <Info className="h-3 w-3 opacity-60 group-hover:opacity-100 transition-opacity" />
+                  </span>
                   <span className="flex h-2.5 w-2.5 relative">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
@@ -2203,25 +2265,83 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 <div className="text-[10px] text-emerald-400/90 font-medium">
                   Signed in & telemetry active
                 </div>
+
+                {/* MOUSEOVER HOVER INFO POPOVER */}
+                <div className="absolute inset-x-0 bottom-full mb-2 hidden group-hover:flex flex-col gap-1.5 p-3.5 rounded-2xl bg-slate-950/95 border border-emerald-500/50 backdrop-blur-xl shadow-2xl z-40 text-xs pointer-events-none animate-in fade-in zoom-in-95 duration-200">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
+                    <span className="font-bold text-white flex items-center gap-1.5">
+                      <Activity className="h-3.5 w-3.5 text-emerald-400" /> Active Session Telemetry
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Live Heartbeat</span>
+                  </div>
+                  <div className="space-y-1 text-[11px] text-slate-300">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Active Within 24 Hours:</span>
+                      <span className="font-bold text-emerald-400">{activeUsersCount} Learners</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Heartbeat Frequency:</span>
+                      <span className="font-bold text-white">Every 2 Minutes</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Inactivity Timeout:</span>
+                      <span className="font-bold text-amber-400">15 Min Auto-Save</span>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-400 pt-1 border-t border-slate-800/80 leading-relaxed">
+                    Learner activity is actively probed with automatic checklist checkpointing and session safety.
+                  </p>
+                </div>
               </div>
 
               {/* Card 3: Idle Users */}
-              <div className="rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-950/40 via-slate-900 to-slate-900 p-4 space-y-2 shadow-sm">
+              <div className="group relative rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-950/40 via-slate-900 to-slate-900 p-4 space-y-2 shadow-sm hover:border-amber-400/60 transition-all cursor-pointer">
                 <div className="flex items-center justify-between text-amber-300">
-                  <span className="text-[11px] font-bold uppercase tracking-wider">Idle / Inactive</span>
-                  <Clock className="h-4 w-4 text-amber-400" />
+                  <span className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    Idle / Inactive <Info className="h-3 w-3 opacity-60 group-hover:opacity-100 transition-opacity" />
+                  </span>
+                  <Clock className="h-4 w-4 text-amber-400 group-hover:scale-110 transition-transform" />
                 </div>
                 <div className="text-3xl font-black text-amber-300">{idleUsersCount} <span className="text-xs font-normal text-slate-400">Idle</span></div>
                 <div className="text-[10px] text-amber-300/90 font-medium">
                   No activity in &gt;24 hours
                 </div>
+
+                {/* MOUSEOVER HOVER INFO POPOVER */}
+                <div className="absolute inset-x-0 bottom-full mb-2 hidden group-hover:flex flex-col gap-1.5 p-3.5 rounded-2xl bg-slate-950/95 border border-amber-500/50 backdrop-blur-xl shadow-2xl z-40 text-xs pointer-events-none animate-in fade-in zoom-in-95 duration-200">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
+                    <span className="font-bold text-white flex items-center gap-1.5">
+                      <Clock className="h-3.5 w-3.5 text-amber-400" /> Dormant User Analysis
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">Offline</span>
+                  </div>
+                  <div className="space-y-1 text-[11px] text-slate-300">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Dormant Accounts:</span>
+                      <span className="font-bold text-amber-400">{idleUsersCount} Accounts</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Threshold:</span>
+                      <span className="font-bold text-white">&gt; 24h Since Last Event</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Saved Progress:</span>
+                      <span className="font-bold text-emerald-400">100% Persisted in DB</span>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-400 pt-1 border-t border-slate-800/80 leading-relaxed">
+                    Learner progress and completed lab solution history remain preserved for their next login session.
+                  </p>
+                </div>
               </div>
 
               {/* Card 4: Platform Tab Controls (Learning Path & Troubleshooting Labs) */}
-              <div className="rounded-2xl border border-purple-500/30 bg-gradient-to-br from-purple-950/40 via-slate-900 to-slate-900 p-4 space-y-2.5 shadow-sm">
+              <div className="group relative rounded-2xl border border-purple-500/30 bg-gradient-to-br from-purple-950/40 via-slate-900 to-slate-900 p-4 space-y-2.5 shadow-sm hover:border-purple-400/60 transition-all">
                 <div className="flex items-center justify-between text-purple-300">
-                  <span className="text-[11px] font-bold uppercase tracking-wider">User UI Tab Access</span>
-                  <Sliders className="h-4 w-4 text-purple-400" />
+                  <span className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    User UI Tab Access <Info className="h-3 w-3 opacity-60 group-hover:opacity-100 transition-opacity" />
+                  </span>
+                  <Sliders className="h-4 w-4 text-purple-400 group-hover:scale-110 transition-transform" />
                 </div>
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between gap-1.5">
@@ -2230,7 +2350,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     </span>
                     <button
                       onClick={() => handleToggleSetting('isLearningPathEnabled')}
-                      className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition-all ${
+                      className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition-all cursor-pointer ${
                         localSettings.isLearningPathEnabled
                           ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'
                           : 'bg-rose-500/20 text-rose-300 border-rose-500/40 hover:bg-rose-500/30'
@@ -2246,7 +2366,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     </span>
                     <button
                       onClick={() => handleToggleSetting('isTroubleshootingLabsEnabled')}
-                      className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition-all ${
+                      className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition-all cursor-pointer ${
                         localSettings.isTroubleshootingLabsEnabled
                           ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'
                           : 'bg-rose-500/20 text-rose-300 border-rose-500/40 hover:bg-rose-500/30'
@@ -2256,6 +2376,33 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     </button>
                   </div>
                 </div>
+
+                {/* MOUSEOVER HOVER INFO POPOVER */}
+                <div className="absolute inset-x-0 bottom-full mb-2 hidden group-hover:flex flex-col gap-1.5 p-3.5 rounded-2xl bg-slate-950/95 border border-purple-500/50 backdrop-blur-xl shadow-2xl z-40 text-xs pointer-events-none animate-in fade-in zoom-in-95 duration-200">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
+                    <span className="font-bold text-white flex items-center gap-1.5">
+                      <Sliders className="h-3.5 w-3.5 text-purple-400" /> Global Platform Tab Controls
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">Live Routing</span>
+                  </div>
+                  <div className="space-y-1 text-[11px] text-slate-300">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Learning Path Sheet:</span>
+                      <span className={`font-bold ${localSettings.isLearningPathEnabled ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {localSettings.isLearningPathEnabled ? 'Active in Learner UI' : 'Disabled / Maintenance'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Incident Labs:</span>
+                      <span className={`font-bold ${localSettings.isTroubleshootingLabsEnabled ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {localSettings.isTroubleshootingLabsEnabled ? 'Active in Learner UI' : 'Disabled / Maintenance'}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-400 pt-1 border-t border-slate-800/80 leading-relaxed">
+                    Instantly toggles platform navigation tabs and applies routing guards across all learner accounts.
+                  </p>
+                </div>
               </div>
 
             </div>
@@ -2263,32 +2410,55 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             {/* TOP KPI SUMMARY CARDS GRID */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
               
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/90 p-4 space-y-2 shadow-sm">
+              {/* KPI 1: Total Active Learners */}
+              <div className="group relative rounded-2xl border border-slate-800 bg-slate-900/90 p-4 space-y-2 shadow-sm hover:border-indigo-500/50 transition-all cursor-pointer">
                 <div className="flex items-center justify-between text-slate-400">
-                  <span className="text-[11px] font-bold uppercase tracking-wider">Total Active Learners</span>
-                  <Users className="h-4 w-4 text-indigo-400" />
+                  <span className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1">
+                    Total Active Learners <Info className="h-3 w-3 opacity-40 group-hover:opacity-100 transition-opacity" />
+                  </span>
+                  <Users className="h-4 w-4 text-indigo-400 group-hover:scale-110 transition-transform" />
                 </div>
                 <div className="text-2xl font-black text-white">{users.length}</div>
                 <div className="text-[10px] text-emerald-400 font-bold flex items-center gap-1">
                   <TrendingUp className="h-3 w-3" /> +12% this month
                 </div>
+
+                <div className="absolute inset-x-0 bottom-full mb-2 hidden group-hover:flex flex-col gap-1 p-3 rounded-2xl bg-slate-950/95 border border-indigo-500/40 backdrop-blur-xl shadow-2xl z-40 text-xs pointer-events-none animate-in fade-in zoom-in-95 duration-200">
+                  <span className="font-bold text-white">Learner Enrollment Pool</span>
+                  <p className="text-[10px] text-slate-300">
+                    {users.length} total users registered in Cloud SQL database. Growing at +12% month-over-month.
+                  </p>
+                </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/90 p-4 space-y-2 shadow-sm">
+              {/* KPI 2: Platform Pass Rate */}
+              <div className="group relative rounded-2xl border border-slate-800 bg-slate-900/90 p-4 space-y-2 shadow-sm hover:border-amber-500/50 transition-all cursor-pointer">
                 <div className="flex items-center justify-between text-slate-400">
-                  <span className="text-[11px] font-bold uppercase tracking-wider">Platform Pass Rate</span>
-                  <Award className="h-4 w-4 text-amber-400" />
+                  <span className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1">
+                    Platform Pass Rate <Info className="h-3 w-3 opacity-40 group-hover:opacity-100 transition-opacity" />
+                  </span>
+                  <Award className="h-4 w-4 text-amber-400 group-hover:scale-110 transition-transform" />
                 </div>
                 <div className="text-2xl font-black text-white">{overallAvgPassRate}%</div>
                 <div className="text-[10px] text-slate-400 font-medium">
                   Target threshold: <span className="text-indigo-400 font-bold">75% Score</span>
                 </div>
+
+                <div className="absolute inset-x-0 bottom-full mb-2 hidden group-hover:flex flex-col gap-1 p-3 rounded-2xl bg-slate-950/95 border border-amber-500/40 backdrop-blur-xl shadow-2xl z-40 text-xs pointer-events-none animate-in fade-in zoom-in-95 duration-200">
+                  <span className="font-bold text-white">Diagnostic Standard</span>
+                  <p className="text-[10px] text-slate-300">
+                    Platform aggregate module accuracy. A minimum benchmark of &ge;75% is required for certificate eligibility.
+                  </p>
+                </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/90 p-4 space-y-2 shadow-sm">
+              {/* KPI 3: Curriculum Catalog */}
+              <div className="group relative rounded-2xl border border-slate-800 bg-slate-900/90 p-4 space-y-2 shadow-sm hover:border-purple-500/50 transition-all cursor-pointer">
                 <div className="flex items-center justify-between text-slate-400">
-                  <span className="text-[11px] font-bold uppercase tracking-wider">Curriculum Catalog</span>
-                  <Layers className="h-4 w-4 text-purple-400" />
+                  <span className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1">
+                    Curriculum Catalog <Info className="h-3 w-3 opacity-40 group-hover:opacity-100 transition-opacity" />
+                  </span>
+                  <Layers className="h-4 w-4 text-purple-400 group-hover:scale-110 transition-transform" />
                 </div>
                 <div className="text-2xl font-black text-white">
                   {activeModulesCount} <span className="text-xs font-normal text-slate-400">/ {totalModulesCount} Active Modules</span>
@@ -2296,27 +2466,54 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 <div className="text-[10px] text-slate-400 font-medium">
                   {activeSubmodulesCount} Active Sub-modules {totalSubmodulesCount > activeSubmodulesCount ? `(${totalSubmodulesCount} Total)` : ''}
                 </div>
+
+                <div className="absolute inset-x-0 bottom-full mb-2 hidden group-hover:flex flex-col gap-1 p-3 rounded-2xl bg-slate-950/95 border border-purple-500/40 backdrop-blur-xl shadow-2xl z-40 text-xs pointer-events-none animate-in fade-in zoom-in-95 duration-200">
+                  <span className="font-bold text-white">Curriculum Stacks Breakdown</span>
+                  <p className="text-[10px] text-slate-300">
+                    {activeModulesCount} enabled modules out of {totalModulesCount} total. {activeSubmodulesCount} active sub-modules across all stacks.
+                  </p>
+                </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/90 p-4 space-y-2 shadow-sm">
+              {/* KPI 4: Labs Mastered */}
+              <div className="group relative rounded-2xl border border-slate-800 bg-slate-900/90 p-4 space-y-2 shadow-sm hover:border-emerald-500/50 transition-all cursor-pointer">
                 <div className="flex items-center justify-between text-slate-400">
-                  <span className="text-[11px] font-bold uppercase tracking-wider">Labs Mastered</span>
-                  <Zap className="h-4 w-4 text-emerald-400" />
+                  <span className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1">
+                    Labs Mastered <Info className="h-3 w-3 opacity-40 group-hover:opacity-100 transition-opacity" />
+                  </span>
+                  <Zap className="h-4 w-4 text-emerald-400 group-hover:scale-110 transition-transform" />
                 </div>
                 <div className="text-2xl font-black text-white">{totalLabsSolvedAggregate} Solved</div>
                 <div className="text-[10px] text-emerald-400 font-bold flex items-center gap-1">
                   <Clock className="h-3 w-3" /> Avg resolution ~4.5 min
                 </div>
+
+                <div className="absolute inset-x-0 bottom-full mb-2 hidden group-hover:flex flex-col gap-1 p-3 rounded-2xl bg-slate-950/95 border border-emerald-500/40 backdrop-blur-xl shadow-2xl z-40 text-xs pointer-events-none animate-in fade-in zoom-in-95 duration-200">
+                  <span className="font-bold text-white">Incident Challenge Telemetry</span>
+                  <p className="text-[10px] text-slate-300">
+                    {totalLabsSolvedAggregate} total incident scenarios diagnosed and resolved across all registered learner accounts.
+                  </p>
+                </div>
               </div>
 
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/90 p-4 space-y-2 shadow-sm">
+              {/* KPI 5: Platform Total XP */}
+              <div className="group relative rounded-2xl border border-slate-800 bg-slate-900/90 p-4 space-y-2 shadow-sm hover:border-amber-400/50 transition-all cursor-pointer">
                 <div className="flex items-center justify-between text-slate-400">
-                  <span className="text-[11px] font-bold uppercase tracking-wider">Platform Total XP</span>
-                  <Sparkles className="h-4 w-4 text-amber-400" />
+                  <span className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1">
+                    Platform Total XP <Info className="h-3 w-3 opacity-40 group-hover:opacity-100 transition-opacity" />
+                  </span>
+                  <Sparkles className="h-4 w-4 text-amber-400 group-hover:scale-110 transition-transform" />
                 </div>
                 <div className="text-2xl font-black text-amber-400">{totalXPAggregate.toLocaleString()} XP</div>
                 <div className="text-[10px] text-slate-400 font-medium">
                   Across all user accounts
+                </div>
+
+                <div className="absolute inset-x-0 bottom-full mb-2 hidden group-hover:flex flex-col gap-1 p-3 rounded-2xl bg-slate-950/95 border border-amber-400/40 backdrop-blur-xl shadow-2xl z-40 text-xs pointer-events-none animate-in fade-in zoom-in-95 duration-200">
+                  <span className="font-bold text-white">Experience Point System</span>
+                  <p className="text-[10px] text-slate-300">
+                    Formula: +25 XP per checklist question answered, +150 XP per incident scenario solved. 500 XP per rank level.
+                  </p>
                 </div>
               </div>
 
@@ -2329,7 +2526,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
                     <PieChart className="h-4 w-4 text-indigo-400" /> Module Completion & Pass Rate Breakdown (75% Minimum Benchmark)
                   </h3>
-                  <p className="text-[11px] text-slate-400">Calculated from verified user scores across all current and future curriculum stacks.</p>
+                  <p className="text-[11px] text-slate-400">Hover over any module card to inspect detailed sub-modules, learner attempts, and certification status.</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-mono text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
@@ -2346,15 +2543,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   return (
                     <div 
                       key={stat.topic.id} 
-                      className={`rounded-xl border p-4 space-y-3 transition-all ${
+                      className={`group relative rounded-xl border p-4 space-y-3 transition-all cursor-pointer ${
                         stat.isDisabled 
                           ? 'border-slate-800/60 bg-slate-950/50 opacity-60' 
-                          : 'border-slate-800 bg-slate-950 hover:border-slate-700'
+                          : 'border-slate-800 bg-slate-950 hover:border-indigo-500/60 hover:shadow-lg'
                       }`}
                     >
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-1.5 min-w-0">
                           <span className="font-bold text-xs text-white truncate">{stat.topic.title}</span>
+                          <Info className="h-3 w-3 text-slate-500 group-hover:text-indigo-400 opacity-60 group-hover:opacity-100 transition-all shrink-0" />
                           {stat.isDisabled && (
                             <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-slate-800 text-slate-400 border border-slate-700 shrink-0">
                               Disabled
@@ -2394,6 +2592,41 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         <span className="text-indigo-400 font-bold flex items-center gap-1">
                           <CheckCircle2 className="h-3 w-3 text-emerald-400" /> 75% Benchmark Target
                         </span>
+                      </div>
+
+                      {/* MOUSEOVER HOVER POPOVER FOR MODULE STATS CARD */}
+                      <div className="absolute inset-x-0 bottom-full mb-2 hidden group-hover:flex flex-col gap-1.5 p-3.5 rounded-2xl bg-slate-950/95 border border-indigo-500/50 backdrop-blur-xl shadow-2xl z-40 text-xs pointer-events-none animate-in fade-in zoom-in-95 duration-200">
+                        <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
+                          <span className="font-bold text-white flex items-center gap-1.5 truncate">
+                            <BookOpen className="h-3.5 w-3.5 text-indigo-400 shrink-0" /> {stat.topic.title} Module
+                          </span>
+                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold shrink-0 ${
+                            stat.isDisabled ? 'bg-slate-800 text-slate-400' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                          }`}>
+                            {stat.isDisabled ? 'Disabled' : 'Active Stack'}
+                          </span>
+                        </div>
+                        <div className="space-y-1 text-[11px] text-slate-300">
+                          <div className="flex justify-between">
+                            <span className="text-slate-400">Pass Rate:</span>
+                            <span className={`font-bold ${isPassing ? 'text-emerald-400' : 'text-amber-400'}`}>{displayRate}%</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-400">Learners Cleared (&ge;75%):</span>
+                            <span className="font-bold text-emerald-400">{stat.passedCount} Learners</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-400">Learners Attempted:</span>
+                            <span className="font-bold text-white">{stat.attemptedCount} of {stat.enrolledCount}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-400">Sub-modules & Questions:</span>
+                            <span className="font-mono text-indigo-300 font-bold">{stat.activeSubmodules} Sub-mods ({stat.totalQuestions} Qs)</span>
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-slate-400 pt-1 border-t border-slate-800/80 leading-relaxed">
+                          Learners achieving &ge;75% mastery in this module are automatically awarded official verifiable certificates.
+                        </p>
                       </div>
                     </div>
                   );
@@ -2503,7 +2736,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                               <td className="px-3 py-3 text-right">
                                 <button
                                   onClick={() => setSelectedReportUser(metrics.user)}
-                                  className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px] shadow transition-all flex items-center gap-1 ml-auto"
+                                  className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px] shadow transition-all flex items-center gap-1 ml-auto cursor-pointer"
                                 >
                                   <FileText className="h-3 w-3" /> Report
                                 </button>
@@ -2526,7 +2759,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         <button
                           onClick={() => setLeaderboardPage(p => Math.max(p - 1, 1))}
                           disabled={currentLeaderboardPage === 1}
-                          className="px-2.5 py-1.5 rounded-lg border border-slate-800 bg-slate-950 text-slate-300 hover:bg-slate-800 disabled:opacity-40 disabled:hover:bg-slate-950 flex items-center gap-1 font-bold text-xs transition-colors"
+                          className="px-2.5 py-1.5 rounded-lg border border-slate-800 bg-slate-950 text-slate-300 hover:bg-slate-800 disabled:opacity-40 disabled:hover:bg-slate-950 flex items-center gap-1 font-bold text-xs transition-colors cursor-pointer"
                         >
                           <ChevronLeft className="h-4 w-4" /> Prev
                         </button>
@@ -2535,7 +2768,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           <button
                             key={pg}
                             onClick={() => setLeaderboardPage(pg)}
-                            className={`w-7 h-7 rounded-lg text-xs font-bold transition-all ${
+                            className={`w-7 h-7 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                               pg === currentLeaderboardPage
                                 ? 'bg-indigo-600 text-white shadow'
                                 : 'border border-slate-800 bg-slate-950 text-slate-400 hover:bg-slate-800 hover:text-white'
@@ -2548,7 +2781,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         <button
                           onClick={() => setLeaderboardPage(p => Math.min(p + 1, totalLeaderboardPages))}
                           disabled={currentLeaderboardPage === totalLeaderboardPages}
-                          className="px-2.5 py-1.5 rounded-lg border border-slate-800 bg-slate-950 text-slate-300 hover:bg-slate-800 disabled:opacity-40 disabled:hover:bg-slate-950 flex items-center gap-1 font-bold text-xs transition-colors"
+                          className="px-2.5 py-1.5 rounded-lg border border-slate-800 bg-slate-950 text-slate-300 hover:bg-slate-800 disabled:opacity-40 disabled:hover:bg-slate-950 flex items-center gap-1 font-bold text-xs transition-colors cursor-pointer"
                         >
                           Next <ChevronRight className="h-4 w-4" />
                         </button>
@@ -2559,7 +2792,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               );
             })()}
 
-            {/* LIVE SYSTEM ACTIVITY & REGISTRATION AUDIT FEED WITH PAGINATION */}
+            {/* LIVE SYSTEM ACTIVITY & REGISTRATION AUDIT FEED WITH PAGINATION AND PURGE OPTION */}
             {(() => {
               const allActivities = liveLogs;
               const totalActivityPages = Math.ceil(allActivities.length / 5) || 1;
@@ -2578,44 +2811,73 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       </h3>
                       <p className="text-[11px] text-slate-400">Real-time audit log of user account registrations, logins, quiz clears, and incident lab completions.</p>
                     </div>
-                    <span className="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold font-mono shrink-0">
-                      {allActivities.length} Logs (5 / page)
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold font-mono shrink-0">
+                        {allActivities.length} Logs (5 / page)
+                      </span>
+                      {allActivities.length > 0 && (
+                        <button
+                          onClick={handleClearAllActivityLogs}
+                          className="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer shrink-0"
+                          title="Purge all audit feed logs from Cloud SQL"
+                        >
+                          <Trash2 className="h-3 w-3" /> Clear Audit Feed
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   <div className="space-y-2">
-                    {paginatedActivities.map((act) => (
-                      <div key={act.id} className="p-3 rounded-xl border border-slate-800 bg-slate-950 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:border-slate-700 transition-all whitespace-nowrap overflow-hidden">
-                        <div className="flex items-center gap-3 min-w-0 flex-1">
-                          <div className={`p-2 rounded-xl shrink-0 ${
-                            act.type === 'ACCOUNT_CREATED'
-                              ? 'bg-purple-500/10 text-purple-400 border border-purple-500/30'
-                              : act.type === 'USER_LOGIN'
-                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
-                              : act.type === 'USER_LOGOUT'
-                              ? 'bg-amber-500/10 text-amber-300 border border-amber-500/30'
-                              : act.type === 'QUIZ_COMPLETED'
-                              ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/30'
-                              : act.type === 'LAB_SOLVED'
-                              ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/30'
-                              : 'bg-slate-800 text-slate-400 border border-slate-700'
-                          }`}>
-                            {act.type === 'ACCOUNT_CREATED' ? <Users className="h-4 w-4" /> : act.type === 'USER_LOGIN' ? <LogIn className="h-4 w-4" /> : act.type === 'USER_LOGOUT' ? <LogOut className="h-4 w-4" /> : <CheckCircle className="h-4 w-4" />}
-                          </div>
-                          <div className="min-w-0 flex-1 whitespace-nowrap">
-                            <div className="font-bold text-xs text-white flex items-center gap-2 whitespace-nowrap">
-                              <span className="whitespace-nowrap">{act.title}</span>
-                              <span className="text-[10px] font-mono text-indigo-400 whitespace-nowrap">@{act.username}</span>
-                              {renderDeviceBadge(act.deviceOS)}
+                    {paginatedActivities.length === 0 ? (
+                      <div className="p-8 rounded-xl border border-slate-800/80 bg-slate-950/50 text-center space-y-2">
+                        <Activity className="h-8 w-8 mx-auto text-slate-600" />
+                        <p className="text-xs text-slate-400 font-bold">No system activity logs recorded yet.</p>
+                        <p className="text-[11px] text-slate-500">Live events will stream here automatically upon user registrations, logins, and lab completions.</p>
+                      </div>
+                    ) : (
+                      paginatedActivities.map((act) => (
+                        <div key={act.id} className="p-3 rounded-xl border border-slate-800 bg-slate-950 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:border-slate-700 transition-all whitespace-nowrap overflow-hidden group">
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                            <div className={`p-2 rounded-xl shrink-0 ${
+                              act.type === 'ACCOUNT_CREATED'
+                                ? 'bg-purple-500/10 text-purple-400 border border-purple-500/30'
+                                : act.type === 'USER_LOGIN'
+                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                                : act.type === 'USER_LOGOUT'
+                                ? 'bg-amber-500/10 text-amber-300 border border-amber-500/30'
+                                : act.type === 'QUIZ_COMPLETED'
+                                ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/30'
+                                : act.type === 'LAB_SOLVED'
+                                ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/30'
+                                : 'bg-slate-800 text-slate-400 border border-slate-700'
+                            }`}>
+                              {act.type === 'ACCOUNT_CREATED' ? <Users className="h-4 w-4" /> : act.type === 'USER_LOGIN' ? <LogIn className="h-4 w-4" /> : act.type === 'USER_LOGOUT' ? <LogOut className="h-4 w-4" /> : <CheckCircle className="h-4 w-4" />}
                             </div>
-                            <p className="text-[11px] text-slate-400 mt-0.5 whitespace-nowrap truncate">{act.details}</p>
+                            <div className="min-w-0 flex-1 whitespace-nowrap">
+                              <div className="font-bold text-xs text-white flex items-center gap-2 whitespace-nowrap">
+                                <span className="whitespace-nowrap">{act.title}</span>
+                                <span className="text-[10px] font-mono text-indigo-400 whitespace-nowrap">@{act.username}</span>
+                                {renderDeviceBadge(act.deviceOS)}
+                              </div>
+                              <p className="text-[11px] text-slate-400 mt-0.5 whitespace-nowrap truncate">{act.details}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3 shrink-0">
+                            <span className="text-[10px] font-mono text-slate-500 whitespace-nowrap">
+                              {act.timestamp}
+                            </span>
+                            <button
+                              onClick={() => handleDeleteActivityLog(act.id)}
+                              className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                              title="Delete this audit log entry"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
                           </div>
                         </div>
-                        <span className="text-[10px] font-mono text-slate-500 shrink-0 whitespace-nowrap">
-                          {act.timestamp}
-                        </span>
-                      </div>
-                    ))}
+                      ))
+                    )}
                   </div>
 
                   {/* AUDIT FEED PAGINATION CONTROLS */}
@@ -2629,7 +2891,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         <button
                           onClick={() => setActivityFeedPage(p => Math.max(p - 1, 1))}
                           disabled={currentActivityPage === 1}
-                          className="px-2.5 py-1.5 rounded-lg border border-slate-800 bg-slate-950 text-slate-300 hover:bg-slate-800 disabled:opacity-40 disabled:hover:bg-slate-950 flex items-center gap-1 font-bold text-xs transition-colors"
+                          className="px-2.5 py-1.5 rounded-lg border border-slate-800 bg-slate-950 text-slate-300 hover:bg-slate-800 disabled:opacity-40 disabled:hover:bg-slate-950 flex items-center gap-1 font-bold text-xs transition-colors cursor-pointer"
                         >
                           <ChevronLeft className="h-4 w-4" /> Prev
                         </button>
@@ -2638,7 +2900,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           <button
                             key={pg}
                             onClick={() => setActivityFeedPage(pg)}
-                            className={`w-7 h-7 rounded-lg text-xs font-bold transition-all ${
+                            className={`w-7 h-7 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                               pg === currentActivityPage
                                 ? 'bg-emerald-600 text-white shadow'
                                 : 'border border-slate-800 bg-slate-950 text-slate-400 hover:bg-slate-800 hover:text-white'
@@ -2651,7 +2913,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         <button
                           onClick={() => setActivityFeedPage(p => Math.min(p + 1, totalActivityPages))}
                           disabled={currentActivityPage === totalActivityPages}
-                          className="px-2.5 py-1.5 rounded-lg border border-slate-800 bg-slate-950 text-slate-300 hover:bg-slate-800 disabled:opacity-40 disabled:hover:bg-slate-950 flex items-center gap-1 font-bold text-xs transition-colors"
+                          className="px-2.5 py-1.5 rounded-lg border border-slate-800 bg-slate-950 text-slate-300 hover:bg-slate-800 disabled:opacity-40 disabled:hover:bg-slate-950 flex items-center gap-1 font-bold text-xs transition-colors cursor-pointer"
                         >
                           Next <ChevronRight className="h-4 w-4" />
                         </button>

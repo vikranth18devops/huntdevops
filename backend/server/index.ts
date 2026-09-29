@@ -343,9 +343,18 @@ app.post('/api/topics', async (req, res) => {
   }
 
   if (getIsPostgresAvailable()) {
+    const client = await pool.connect();
     try {
+      await client.query('BEGIN');
+      const topicIds = topics.map(t => t.id);
+      if (topicIds.length > 0) {
+        await client.query(`DELETE FROM topics WHERE id NOT IN (${topicIds.map((_, i) => `$${i + 1}`).join(',')})`, topicIds);
+      } else {
+        await client.query(`DELETE FROM topics`);
+      }
+
       for (const t of topics) {
-        await pool.query(
+        await client.query(
           `INSERT INTO topics (id, title, subtitle, data_json, updated_at)
            VALUES ($1, $2, $3, $4, NOW())
            ON CONFLICT (id) DO UPDATE SET
@@ -356,10 +365,14 @@ app.post('/api/topics', async (req, res) => {
           [t.id, t.title, t.subtitle || '', JSON.stringify(t)]
         );
       }
+      await client.query('COMMIT');
       return res.json({ success: true, message: 'Topics successfully saved to Cloud SQL PostgreSQL.' });
     } catch (err: any) {
+      await client.query('ROLLBACK');
       console.error('Error saving topics to PostgreSQL:', err);
       return res.status(500).json({ error: err.message || 'Failed to save topics.' });
+    } finally {
+      client.release();
     }
   }
 
@@ -403,9 +416,18 @@ app.post('/api/labs', async (req, res) => {
   }
 
   if (getIsPostgresAvailable()) {
+    const client = await pool.connect();
     try {
+      await client.query('BEGIN');
+      const labIds = labs.map(l => l.id);
+      if (labIds.length > 0) {
+        await client.query(`DELETE FROM incident_labs WHERE id NOT IN (${labIds.map((_, i) => `$${i + 1}`).join(',')})`, labIds);
+      } else {
+        await client.query(`DELETE FROM incident_labs`);
+      }
+
       for (const l of labs) {
-        await pool.query(
+        await client.query(
           `INSERT INTO incident_labs (id, title, topic, experience_level, data_json, updated_at)
            VALUES ($1, $2, $3, $4, $5, NOW())
            ON CONFLICT (id) DO UPDATE SET
@@ -417,10 +439,14 @@ app.post('/api/labs', async (req, res) => {
           [l.id, l.title, l.topic, l.experienceLevel || 'Intermediate', JSON.stringify(l)]
         );
       }
+      await client.query('COMMIT');
       return res.json({ success: true, message: 'Incident labs saved to Cloud SQL PostgreSQL.' });
     } catch (err: any) {
+      await client.query('ROLLBACK');
       console.error('Error saving incident labs to PostgreSQL:', err);
       return res.status(500).json({ error: err.message || 'Failed to save labs.' });
+    } finally {
+      client.release();
     }
   }
 
@@ -627,6 +653,19 @@ app.delete('/api/logs', async (req, res) => {
     try {
       await pool.query(`DELETE FROM activity_logs`);
       return res.json({ success: true, message: 'Activity logs purged from Cloud SQL.' });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+  return res.status(503).json({ error: 'Database unavailable' });
+});
+
+app.delete('/api/logs/:id', async (req, res) => {
+  const { id } = req.params;
+  if (getIsPostgresAvailable()) {
+    try {
+      await pool.query(`DELETE FROM activity_logs WHERE id = $1`, [id]);
+      return res.json({ success: true, message: `Activity log ${id} deleted.` });
     } catch (err: any) {
       return res.status(500).json({ error: err.message });
     }
