@@ -105,9 +105,19 @@ export async function initDatabase() {
         timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       );
 
+      CREATE TABLE IF NOT EXISTS platform_settings (
+        key VARCHAR(100) PRIMARY KEY,
+        value_json JSONB NOT NULL,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(50);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+
       CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
       CREATE INDEX IF NOT EXISTS idx_users_exp_level ON users(experience_level);
       CREATE INDEX IF NOT EXISTS idx_completions_user ON user_completions(username);
+      CREATE INDEX IF NOT EXISTS idx_users_last_active ON users(last_active_at);
     `);
 
     client.release();

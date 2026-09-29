@@ -47,7 +47,8 @@ import {
   Loader2,
   History,
   FileSpreadsheet,
-  Info
+  Info,
+  Sliders
 } from 'lucide-react';
 import { getItemExperienceLevel, type Topic, type Section, type CommandItem } from '../data/sheetData';
 import { CHALLENGES, type Challenge } from '../data/practiceData';
@@ -58,7 +59,9 @@ import {
   updateUserStatusApi,
   updateUserExperienceLevelApi,
   resetUserPasswordApi,
-  fetchActivityLogsApi
+  fetchActivityLogsApi,
+  savePlatformSettingsApi,
+  type PlatformSettings
 } from '../services/api';
 
 
@@ -75,6 +78,7 @@ export interface UserRecord {
   createdAt: string;
   lastDeviceOS?: string;
   lastLoginAt?: string;
+  lastActiveAt?: string;
 }
 
 export function renderUserExperienceBadge(expLevel?: string) {
@@ -279,6 +283,8 @@ interface AdminPortalProps {
   challenges?: Challenge[];
   onUpdateChallenges?: (newChallenges: Challenge[]) => void;
   onResetUserProgress?: (username: string) => void;
+  platformSettings?: PlatformSettings;
+  onUpdatePlatformSettings?: (settings: PlatformSettings) => void;
 }
 
 // User Performance Telemetry Interface
@@ -436,7 +442,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   onNavigateHome,
   challenges,
   onUpdateChallenges,
-  onResetUserProgress
+  onResetUserProgress,
+  platformSettings,
+  onUpdatePlatformSettings
 }) => {
   // Admin authentication state
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => {
@@ -449,6 +457,50 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
   // Tab State
   const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'cms' | 'labs' | 'audit'>('dashboard');
+
+  // Platform Tab Visibility Controls (Learning Path & Troubleshooting Labs)
+  const [localSettings, setLocalSettings] = useState<PlatformSettings>(() => {
+    return platformSettings || {
+      isLearningPathEnabled: true,
+      isTroubleshootingLabsEnabled: true
+    };
+  });
+
+  useEffect(() => {
+    if (platformSettings) {
+      setLocalSettings(platformSettings);
+    }
+  }, [platformSettings]);
+
+  const handleToggleSetting = (key: 'isLearningPathEnabled' | 'isTroubleshootingLabsEnabled') => {
+    const next = { ...localSettings, [key]: !localSettings[key] };
+    setLocalSettings(next);
+    if (onUpdatePlatformSettings) {
+      onUpdatePlatformSettings(next);
+    } else {
+      savePlatformSettingsApi(next);
+    }
+    showToast(`${key === 'isLearningPathEnabled' ? 'Learning Path' : 'Troubleshooting Labs'} tab is now ${next[key] ? 'Enabled' : 'Disabled'}.`);
+  };
+
+  // User Registration & Activity Telemetry Calculation
+  const totalRegisteredUsers = users.length;
+  const activeUsersCount = useMemo(() => {
+    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    return users.filter(u => {
+      if (u.status === 'Suspended') return false;
+      if (u.lastActiveAt) {
+        return new Date(u.lastActiveAt).getTime() > oneDayAgo;
+      }
+      if (u.lastLoginAt) {
+        return new Date(u.lastLoginAt).getTime() > oneDayAgo;
+      }
+      return true;
+    }).length;
+  }, [users]);
+  const idleUsersCount = Math.max(0, totalRegisteredUsers - activeUsersCount);
+  const learnerUsersCount = users.filter(u => (u.role || 'Learner') !== 'Admin').length;
+  const adminUsersCount = users.filter(u => (u.role || 'Learner') === 'Admin').length;
 
   // Live Activity Logs from Cloud SQL
   const [liveLogs, setLiveLogs] = useState(() => getActivityLogs());
@@ -465,6 +517,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   // Dashboard Pagination State (5 items per page)
   const [leaderboardPage, setLeaderboardPage] = useState(1);
   const [activityFeedPage, setActivityFeedPage] = useState(1);
+
 
 
   // Individual User Performance Report Modal State
@@ -1978,10 +2031,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
               <button
                 onClick={handleAdminLogout}
-                className="group p-2.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 hover:border-rose-500/50 hover:shadow-md hover:shadow-rose-500/10 transition-all shrink-0"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 hover:border-rose-500/50 hover:shadow-md text-xs font-bold transition-all shrink-0"
                 title="Sign Out Admin Session"
               >
-                <LogOut className="h-4.5 w-4.5 group-hover:-translate-x-0.5 transition-transform" />
+                <LogOut className="h-4 w-4 text-rose-400" />
+                <span className="hidden xs:inline">Logout</span>
               </button>
             </div>
 
@@ -2019,6 +2073,91 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" /> Platform Health: Nominal
                 </span>
               </div>
+            </div>
+
+            {/* REAL-TIME USER TELEMETRY & PLATFORM TAB CONTROLS GRID */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              
+              {/* Card 1: Total Registered Users */}
+              <div className="rounded-2xl border border-indigo-500/30 bg-gradient-to-br from-indigo-950/40 via-slate-900 to-slate-900 p-4 space-y-2 shadow-sm">
+                <div className="flex items-center justify-between text-indigo-300">
+                  <span className="text-[11px] font-bold uppercase tracking-wider">Registered Users</span>
+                  <Users className="h-4 w-4 text-indigo-400" />
+                </div>
+                <div className="text-3xl font-black text-white">{totalRegisteredUsers} <span className="text-xs font-normal text-slate-400">Total</span></div>
+                <div className="text-[10px] text-indigo-300/90 font-medium flex items-center gap-1">
+                  <span>{learnerUsersCount} Learners · {adminUsersCount} Super Admin</span>
+                </div>
+              </div>
+
+              {/* Card 2: Active Users */}
+              <div className="rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-900 p-4 space-y-2 shadow-sm">
+                <div className="flex items-center justify-between text-emerald-300">
+                  <span className="text-[11px] font-bold uppercase tracking-wider">Active Learners</span>
+                  <span className="flex h-2.5 w-2.5 relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                  </span>
+                </div>
+                <div className="text-3xl font-black text-emerald-400">{activeUsersCount} <span className="text-xs font-normal text-slate-400">Active</span></div>
+                <div className="text-[10px] text-emerald-400/90 font-medium">
+                  Signed in & telemetry active
+                </div>
+              </div>
+
+              {/* Card 3: Idle Users */}
+              <div className="rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-950/40 via-slate-900 to-slate-900 p-4 space-y-2 shadow-sm">
+                <div className="flex items-center justify-between text-amber-300">
+                  <span className="text-[11px] font-bold uppercase tracking-wider">Idle / Inactive</span>
+                  <Clock className="h-4 w-4 text-amber-400" />
+                </div>
+                <div className="text-3xl font-black text-amber-300">{idleUsersCount} <span className="text-xs font-normal text-slate-400">Idle</span></div>
+                <div className="text-[10px] text-amber-300/90 font-medium">
+                  No activity in &gt;24 hours
+                </div>
+              </div>
+
+              {/* Card 4: Platform Tab Controls (Learning Path & Troubleshooting Labs) */}
+              <div className="rounded-2xl border border-purple-500/30 bg-gradient-to-br from-purple-950/40 via-slate-900 to-slate-900 p-4 space-y-2.5 shadow-sm">
+                <div className="flex items-center justify-between text-purple-300">
+                  <span className="text-[11px] font-bold uppercase tracking-wider">User UI Tab Access</span>
+                  <Sliders className="h-4 w-4 text-purple-400" />
+                </div>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-1.5">
+                    <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1">
+                      <BookOpen className="h-3 w-3 text-indigo-400" /> Learning Path:
+                    </span>
+                    <button
+                      onClick={() => handleToggleSetting('isLearningPathEnabled')}
+                      className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition-all ${
+                        localSettings.isLearningPathEnabled
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'
+                          : 'bg-rose-500/20 text-rose-300 border-rose-500/40 hover:bg-rose-500/30'
+                      }`}
+                    >
+                      {localSettings.isLearningPathEnabled ? '🟢 Enabled' : '🔴 Disabled'}
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-1.5">
+                    <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1">
+                      <ShieldAlert className="h-3 w-3 text-emerald-400" /> Troubleshooting:
+                    </span>
+                    <button
+                      onClick={() => handleToggleSetting('isTroubleshootingLabsEnabled')}
+                      className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition-all ${
+                        localSettings.isTroubleshootingLabsEnabled
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'
+                          : 'bg-rose-500/20 text-rose-300 border-rose-500/40 hover:bg-rose-500/30'
+                      }`}
+                    >
+                      {localSettings.isTroubleshootingLabsEnabled ? '🟢 Enabled' : '🔴 Disabled'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
             </div>
 
             {/* TOP KPI SUMMARY CARDS GRID */}

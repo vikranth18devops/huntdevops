@@ -277,3 +277,51 @@ export async function purgeActivityLogsApi() {
     return false;
   }
 }
+
+// ----------------------------------------------------------------------
+// Platform Settings (Learning Path & Troubleshooting Labs visibility)
+// ----------------------------------------------------------------------
+export interface PlatformSettings {
+  isLearningPathEnabled: boolean;
+  isTroubleshootingLabsEnabled: boolean;
+}
+
+export async function fetchPlatformSettingsApi(): Promise<PlatformSettings> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/settings`);
+    if (res.ok) return await res.json();
+  } catch (err) {
+    console.warn('API error fetching platform settings:', err);
+  }
+  return {
+    isLearningPathEnabled: true,
+    isTroubleshootingLabsEnabled: true
+  };
+}
+
+export async function savePlatformSettingsApi(settings: PlatformSettings): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings)
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('API error saving platform settings:', err);
+    return false;
+  }
+}
+
+export async function sendUserHeartbeatApi(username: string): Promise<void> {
+  try {
+    await fetch(`${API_BASE_URL}/users/heartbeat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username })
+    });
+  } catch {
+    // Fail silently
+  }
+}
+

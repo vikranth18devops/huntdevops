@@ -70,7 +70,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     return 'DevOps Apprentice';
   };
 
-  const BADGES = topics.map(t => {
+  const enabledTopics = topics.filter(t => !t.disabled);
+
+  const BADGES = enabledTopics.map(t => {
     const items = t.sections.flatMap(s => s.commands.flatMap(c => c.items));
     const comp = items.filter(i => completedIds.has(i.id)).length;
     const isUnlocked = comp > 0 && comp === items.length;

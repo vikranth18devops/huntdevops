@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
 import { LearningSheet } from './components/LearningSheet';
@@ -9,6 +9,7 @@ import { LaunchDashboardModal } from './components/LaunchDashboardModal';
 import { AchievementsModal } from './components/AchievementsModal';
 import { AdminPortal, type UserRecord } from './components/AdminPortal';
 import { LoginPage } from './components/LoginPage';
+import { SessionTimeoutModal } from './components/SessionTimeoutModal';
 import { TOPICS, type Topic } from './data/sheetData';
 import { CHALLENGES, type Challenge } from './data/practiceData';
 import { logUserActivity, detectDeviceOS, updateUserStreakOnLogin } from './utils/activityStore';
@@ -22,9 +23,13 @@ import {
   recordQuestionCompletionApi,
   recordQuestionUncompletionApi,
   recordLabSolutionApi,
-  resetUserProgressApi
+  resetUserProgressApi,
+  fetchPlatformSettingsApi,
+  savePlatformSettingsApi,
+  sendUserHeartbeatApi,
+  type PlatformSettings
 } from './services/api';
-import { Sparkles, Award, Flame, X } from 'lucide-react';
+import { Sparkles, Award, Flame, X, ShieldAlert, BookOpen } from 'lucide-react';
 
 export function App() {
   // Routing state for /admin vs /
@@ -48,6 +53,28 @@ export function App() {
   const navigateTo = (path: string) => {
     window.history.pushState({}, '', path);
     setCurrentPath(path);
+  };
+
+  // Dynamic Platform Tab Visibility Settings (backed by Cloud SQL PostgreSQL)
+  const [platformSettings, setPlatformSettings] = useState<PlatformSettings>(() => {
+    try {
+      const saved = localStorage.getItem('huntdevops_platform_settings');
+      return saved ? JSON.parse(saved) : { isLearningPathEnabled: true, isTroubleshootingLabsEnabled: true };
+    } catch {
+      return { isLearningPathEnabled: true, isTroubleshootingLabsEnabled: true };
+    }
+  });
+
+  const handleUpdatePlatformSettings = (newSettings: PlatformSettings) => {
+    setPlatformSettings(newSettings);
+    localStorage.setItem('huntdevops_platform_settings', JSON.stringify(newSettings));
+    savePlatformSettingsApi(newSettings);
+
+    if (!newSettings.isLearningPathEnabled && activeTab === 'sheet') {
+      setActiveTab('practice');
+    } else if (!newSettings.isTroubleshootingLabsEnabled && activeTab === 'practice') {
+      setActiveTab('sheet');
+    }
   };
 
   // Dynamic Curriculum Topics state (backed by Cloud SQL PostgreSQL)
@@ -117,6 +144,18 @@ export function App() {
 
   // Sync real-time data from Cloud SQL PostgreSQL on mount
   useEffect(() => {
+    fetchPlatformSettingsApi().then(settings => {
+      if (settings) {
+        setPlatformSettings(settings);
+        localStorage.setItem('huntdevops_platform_settings', JSON.stringify(settings));
+        if (!settings.isLearningPathEnabled && activeTab === 'sheet') {
+          setActiveTab('practice');
+        } else if (!settings.isTroubleshootingLabsEnabled && activeTab === 'practice') {
+          setActiveTab('sheet');
+        }
+      }
+    });
+
     fetchAllUsersApi().then(dbUsers => {
       if (Array.isArray(dbUsers) && dbUsers.length > 0) {
         setUserStore(dbUsers);
@@ -144,7 +183,6 @@ export function App() {
   const [activeTopicId, setActiveTopicId] = useState<string>(topics[0]?.id || 'argocd');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
-
 
   // Authenticated user state
   const [user, setUser] = useState<{ username: string; displayName?: string; email?: string; phone?: string; role?: string; experienceLevel?: 'Beginner' | 'Intermediate' | 'Advanced' } | null>(() => {
@@ -229,6 +267,58 @@ export function App() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
   const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
+  const [isSessionTimeoutOpen, setIsSessionTimeoutOpen] = useState(false);
+
+  // -------------------------------------------------------------
+  // INACTIVITY SESSION TIMEOUT & AUTO-SAVE (15 Minutes)
+  // -------------------------------------------------------------
+  const lastActivityRef = useRef<number>(Date.now());
+
+  useEffect(() => {
+    if (!user?.username) return;
+
+    lastActivityRef.current = Date.now();
+    const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000; // 15 mins timeout
+
+    const handleUserActivity = () => {
+      lastActivityRef.current = Date.now();
+    };
+
+    const activityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
+    activityEvents.forEach(evt => window.addEventListener(evt, handleUserActivity, { passive: true }));
+
+    // Periodic Heartbeat every 2 minutes
+    const heartbeatTimer = setInterval(() => {
+      if (user?.username) {
+        sendUserHeartbeatApi(user.username);
+      }
+    }, 2 * 60 * 1000);
+
+    // Inactivity Checker every 15 seconds
+    const checkTimeoutTimer = setInterval(() => {
+      if (Date.now() - lastActivityRef.current > INACTIVITY_TIMEOUT_MS) {
+        if (user?.username) {
+          logUserActivity(
+            user.username,
+            'USER_LOGOUT',
+            `Session Expired (Timeout): @${user.username}`,
+            `Auto-logged out after 15 mins of inactivity. All assignments & progress safely saved to Cloud SQL.`,
+            detectDeviceOS()
+          );
+        }
+        localStorage.removeItem('huntdevops_user');
+        localStorage.removeItem('onlydevops_user');
+        setUser(null);
+        setIsSessionTimeoutOpen(true);
+      }
+    }, 15000);
+
+    return () => {
+      activityEvents.forEach(evt => window.removeEventListener(evt, handleUserActivity));
+      clearInterval(heartbeatTimer);
+      clearInterval(checkTimeoutTimer);
+    };
+  }, [user?.username]);
 
   // Persist completed items per user in Cloud SQL PostgreSQL
   const toggleCompleted = (itemId: string) => {
@@ -346,6 +436,8 @@ export function App() {
         challenges={challengesList}
         onUpdateChallenges={handleUpdateChallenges}
         onResetUserProgress={handleResetUserProgress}
+        platformSettings={platformSettings}
+        onUpdatePlatformSettings={handleUpdatePlatformSettings}
       />
     );
   }
@@ -375,13 +467,15 @@ export function App() {
         isSidebarOpen={isSidebarOpen}
         setIsSidebarOpen={setIsSidebarOpen}
         streakCount={streakCount}
+        isLearningPathEnabled={platformSettings.isLearningPathEnabled}
+        isTroubleshootingLabsEnabled={platformSettings.isTroubleshootingLabsEnabled}
       />
 
       {/* Main Layout Container with Sidebar */}
       <div className="flex">
 
         {/* DevOps Stack Sidebar */}
-        {activeTab === 'sheet' && (
+        {activeTab === 'sheet' && platformSettings.isLearningPathEnabled && (
           <Sidebar
             topics={topics}
             activeTopicId={activeTopicId}
@@ -396,23 +490,63 @@ export function App() {
         {/* Main Content View */}
         <main className="flex-1 min-w-0 pb-16">
           {activeTab === 'sheet' ? (
-            <LearningSheet
-              topics={topics}
-              activeTopicId={activeTopicId}
-              setActiveTopicId={setActiveTopicId}
-              completedIds={completedIds}
-              toggleCompleted={toggleCompleted}
-              searchQuery={searchQuery}
-              user={user}
-              streakCount={streakCount}
-            />
+            platformSettings.isLearningPathEnabled ? (
+              <LearningSheet
+                topics={topics}
+                activeTopicId={activeTopicId}
+                setActiveTopicId={setActiveTopicId}
+                completedIds={completedIds}
+                toggleCompleted={toggleCompleted}
+                searchQuery={searchQuery}
+                user={user}
+                streakCount={streakCount}
+              />
+            ) : (
+              <div className="mx-auto max-w-2xl px-4 py-20 text-center space-y-4">
+                <div className="inline-flex p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-500">
+                  <BookOpen className="h-8 w-8" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-800">Learning Path Temporarily Unavailable</h3>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  The administrator has temporarily disabled the Learning Path curriculum module for maintenance. Please practice incident troubleshooting challenges in the meantime.
+                </p>
+                {platformSettings.isTroubleshootingLabsEnabled && (
+                  <button
+                    onClick={() => setActiveTab('practice')}
+                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all shadow-sm"
+                  >
+                    Go to Troubleshooting Labs
+                  </button>
+                )}
+              </div>
+            )
           ) : (
-            <TroubleshootingPractice
-              challenges={challengesList}
-              solvedIds={solvedIds}
-              onSolveChallenge={handleSolveChallenge}
-              user={user}
-            />
+            platformSettings.isTroubleshootingLabsEnabled ? (
+              <TroubleshootingPractice
+                challenges={challengesList}
+                solvedIds={solvedIds}
+                onSolveChallenge={handleSolveChallenge}
+                user={user}
+              />
+            ) : (
+              <div className="mx-auto max-w-2xl px-4 py-20 text-center space-y-4">
+                <div className="inline-flex p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-500">
+                  <ShieldAlert className="h-8 w-8" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-800">Troubleshooting Labs Temporarily Unavailable</h3>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  The administrator has temporarily disabled the Troubleshooting Labs module for scenario maintenance. Please explore the Learning Path checklist.
+                </p>
+                {platformSettings.isLearningPathEnabled && (
+                  <button
+                    onClick={() => setActiveTab('sheet')}
+                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all shadow-sm"
+                  >
+                    Go to Learning Path
+                  </button>
+                )}
+              </div>
+            )
           )}
         </main>
       </div>
@@ -421,10 +555,16 @@ export function App() {
       <footer className="border-t border-slate-200 py-8 bg-white">
         <div className="mx-auto max-w-7xl px-4 text-center text-xs text-slate-500 space-y-2">
           <p>© 2026 HuntDevOps — Practical DevOps learning sheet with hands-on troubleshooting challenges.</p>
-          <div className="flex items-center justify-center gap-4 pt-1">
-            <button onClick={() => setActiveTab('sheet')} className="hover:underline">Learning Path</button>
-            <span>•</span>
-            <button onClick={() => setActiveTab('practice')} className="hover:underline font-bold text-emerald-700">Practice Incidents</button>
+          <div className="flex items-center justify-center gap-4 pt-1 flex-wrap">
+            {platformSettings.isLearningPathEnabled && (
+              <button onClick={() => setActiveTab('sheet')} className="hover:underline">Learning Path</button>
+            )}
+            {platformSettings.isLearningPathEnabled && platformSettings.isTroubleshootingLabsEnabled && (
+              <span>•</span>
+            )}
+            {platformSettings.isTroubleshootingLabsEnabled && (
+              <button onClick={() => setActiveTab('practice')} className="hover:underline font-bold text-emerald-700">Practice Incidents</button>
+            )}
             <span>•</span>
             <button onClick={() => setIsDashboardOpen(true)} className="hover:underline">Launch Stats</button>
           </div>
@@ -482,6 +622,17 @@ export function App() {
         solvedIds={solvedIds}
         user={user}
         streakCount={streakCount}
+      />
+
+      {/* SESSION TIMEOUT MODAL WITH AUTO-SAVE CONFIRMATION */}
+      <SessionTimeoutModal
+        isOpen={isSessionTimeoutOpen}
+        onClose={() => setIsSessionTimeoutOpen(false)}
+        onLoginAgain={() => {
+          setIsSessionTimeoutOpen(false);
+          setIsAuthOpen(true);
+        }}
+        savedItemsCount={completedIds.size}
       />
 
       {/* ATTRACTIVE USER LOGOUT FAREWELL MODAL */}

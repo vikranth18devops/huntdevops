@@ -27,6 +27,8 @@ interface NavbarProps {
   isSidebarOpen: boolean;
   setIsSidebarOpen: (open: boolean) => void;
   streakCount?: number;
+  isLearningPathEnabled?: boolean;
+  isTroubleshootingLabsEnabled?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -41,7 +43,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenAchievements,
   isSidebarOpen,
   setIsSidebarOpen,
-  streakCount = 1
+  streakCount = 1,
+  isLearningPathEnabled = true,
+  isTroubleshootingLabsEnabled = true
 }) => {
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur-md">
@@ -60,7 +64,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <a
               href="#"
-              onClick={(e) => { e.preventDefault(); setActiveTab('sheet'); }}
+              onClick={(e) => { e.preventDefault(); if (isLearningPathEnabled) setActiveTab('sheet'); else if (isTroubleshootingLabsEnabled) setActiveTab('practice'); }}
               className="flex items-center gap-2.5 font-bold text-2xl tracking-tight text-slate-900 transition-opacity hover:opacity-90"
             >
               <img src="/fevicon.png" alt="HuntDevOps Logo" className="h-9 w-9 object-contain rounded-xl shrink-0 shadow-sm" />
@@ -70,29 +74,35 @@ export const Navbar: React.FC<NavbarProps> = ({
             </a>
 
             {/* Navigation Tabs */}
-            <nav className="hidden md:flex items-center gap-1 rounded-2xl bg-slate-100 p-1 border border-slate-200">
-              <button
-                onClick={() => setActiveTab('sheet')}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'sheet'
-                    ? 'bg-white text-indigo-600 shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                  }`}
-              >
-                <CheckSquare className="h-5 w-5 text-indigo-600 shrink-0" />
-                <span>Learning Path</span>
-              </button>
+            {(isLearningPathEnabled || isTroubleshootingLabsEnabled) && (
+              <nav className="hidden md:flex items-center gap-1 rounded-2xl bg-slate-100 p-1 border border-slate-200">
+                {isLearningPathEnabled && (
+                  <button
+                    onClick={() => setActiveTab('sheet')}
+                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'sheet'
+                        ? 'bg-white text-indigo-600 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                  >
+                    <CheckSquare className="h-5 w-5 text-indigo-600 shrink-0" />
+                    <span>Learning Path</span>
+                  </button>
+                )}
 
-              <button
-                onClick={() => setActiveTab('practice')}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'practice'
-                    ? 'bg-white text-indigo-600 shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                  }`}
-              >
-                <ShieldAlert className="h-5 w-5 text-emerald-600 shrink-0" />
-                <span>Troubleshooting Labs</span>
-              </button>
-            </nav>
+                {isTroubleshootingLabsEnabled && (
+                  <button
+                    onClick={() => setActiveTab('practice')}
+                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'practice'
+                        ? 'bg-white text-indigo-600 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                  >
+                    <ShieldAlert className="h-5 w-5 text-emerald-600 shrink-0" />
+                    <span>Troubleshooting Labs</span>
+                  </button>
+                )}
+              </nav>
+            )}
           </div>
 
           {/* Search Input */}

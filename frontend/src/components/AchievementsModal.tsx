@@ -27,7 +27,9 @@ export const AchievementsModal: React.FC<AchievementsModalProps> = ({
   const xp = completedIds.size * 25 + solvedIds.size * 150;
   const level = Math.floor(xp / 500) + 1;
 
-  const BADGES = topics.map(t => {
+  const enabledTopics = topics.filter(t => !t.disabled);
+
+  const BADGES = enabledTopics.map(t => {
     const items = t.sections.flatMap(s => s.commands.flatMap(c => c.items));
     const comp = items.filter(i => completedIds.has(i.id)).length;
     const isUnlocked = comp > 0 && comp === items.length;

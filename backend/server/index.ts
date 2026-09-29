@@ -132,7 +132,7 @@ app.get('/api/users', async (req, res) => {
   if (getIsPostgresAvailable()) {
     try {
       const result = await pool.query(
-        `SELECT id, username, display_name as "displayName", email, phone, role, experience_level as "experienceLevel", status, last_device_os as "lastDeviceOS", TO_CHAR(created_at, 'YYYY-MM-DD') as "createdAt"
+        `SELECT id, username, display_name as "displayName", email, phone, role, experience_level as "experienceLevel", status, last_device_os as "lastDeviceOS", TO_CHAR(created_at, 'YYYY-MM-DD') as "createdAt", TO_CHAR(last_active_at, 'YYYY-MM-DD HH24:MI:SS') as "lastActiveAt"
          FROM users ORDER BY created_at DESC`
       );
       return res.json(result.rows);
@@ -635,7 +635,65 @@ app.delete('/api/logs', async (req, res) => {
 });
 
 // -------------------------------------------------------------
-// 8. Server Boot & Auto Real-Time Sync
+// 8. Platform Global Settings & Real-time Heartbeat
+// -------------------------------------------------------------
+app.get('/api/settings', async (req, res) => {
+  const defaultSettings = {
+    isLearningPathEnabled: true,
+    isTroubleshootingLabsEnabled: true
+  };
+
+  if (getIsPostgresAvailable()) {
+    try {
+      const result = await pool.query(`SELECT value_json FROM platform_settings WHERE key = 'tabs_visibility'`);
+      if (result.rows.length > 0) {
+        return res.json({ ...defaultSettings, ...result.rows[0].value_json });
+      }
+    } catch (err) {
+      console.error('Error fetching platform settings:', err);
+    }
+  }
+
+  return res.json(defaultSettings);
+});
+
+app.post('/api/settings', async (req, res) => {
+  const settings = req.body;
+  if (getIsPostgresAvailable()) {
+    try {
+      await pool.query(
+        `INSERT INTO platform_settings (key, value_json, updated_at)
+         VALUES ('tabs_visibility', $1, NOW())
+         ON CONFLICT (key) DO UPDATE SET value_json = EXCLUDED.value_json, updated_at = NOW()`,
+        [JSON.stringify(settings)]
+      );
+      return res.json({ success: true, settings });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+  return res.status(503).json({ error: 'Database unavailable' });
+});
+
+app.post('/api/users/heartbeat', async (req, res) => {
+  const { username } = req.body;
+  if (!username) return res.status(400).json({ error: 'Username required' });
+  if (getIsPostgresAvailable()) {
+    try {
+      await pool.query(
+        `UPDATE users SET last_active_at = NOW() WHERE LOWER(username) = LOWER($1)`,
+        [username]
+      );
+      return res.json({ success: true });
+    } catch (err) {
+      console.error('Heartbeat error:', err);
+    }
+  }
+  return res.json({ success: true });
+});
+
+// -------------------------------------------------------------
+// 9. Server Boot & Auto Real-Time Sync
 // -------------------------------------------------------------
 initDatabase().then(async () => {
   await populateRealtimeDatabase();
