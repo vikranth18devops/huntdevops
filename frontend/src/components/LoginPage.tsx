@@ -15,14 +15,14 @@ import {
   Zap
 } from 'lucide-react';
 import { syncUserToAdminStore, detectDeviceOS } from '../utils/activityStore';
-
-
+import type { Topic } from '../data/sheetData';
 
 interface LoginPageProps {
   onLoginSuccess: (user: { username: string; displayName?: string; email?: string; phone?: string }) => void;
+  topics?: Topic[];
 }
 
-export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
+export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, topics }) => {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -34,6 +34,28 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Dynamic admin-enabled topics calculation
+  const activeTopics = React.useMemo(() => {
+    if (topics && topics.length > 0) {
+      return topics.filter(t => !t.disabled);
+    }
+    try {
+      const saved = localStorage.getItem('huntdevops_topics');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((t: any) => !t.disabled);
+        }
+      }
+    } catch {}
+    return [];
+  }, [topics]);
+
+  const enabledCount = activeTopics.length > 0 ? activeTopics.length : 11;
+  const topTopicsSummary = activeTopics.length > 0
+    ? activeTopics.slice(0, 5).map(t => t.title).join(', ') + (activeTopics.length > 5 ? ' & more' : '')
+    : 'Linux, Docker, K8s, Terraform & Git';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -255,8 +277,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               </h2>
               <p className="text-sm text-slate-400 max-w-md leading-relaxed font-normal">
                 {mode === 'login' 
-                  ? 'Access 11 core tech modules, practice multiple-choice questions with detailed explanations, and solve live incident labs.' 
-                  : 'Register now to sync your module badges, track level ranks, and save your daily learning streak.'}
+                  ? `Access ${enabledCount} core tech modules, practice multiple-choice questions with detailed explanations, and solve live incident labs.` 
+                  : `Register now to master all ${enabledCount} active DevOps modules, earn verifiable certificates, and track your daily streak.`}
               </p>
             </div>
 
@@ -264,9 +286,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             <div className="grid grid-cols-2 gap-3 pt-2">
               <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800/80 space-y-1 hover:border-indigo-500/40 transition-all">
                 <div className="flex items-center gap-2 text-xs font-bold text-indigo-400">
-                  <Layers className="h-4 w-4 text-indigo-400" /> 11 Tech Modules
+                  <Layers className="h-4 w-4 text-indigo-400" /> {enabledCount} Tech Modules
                 </div>
-                <div className="text-[11px] text-slate-400">Linux, Docker, K8s, Terraform & Git</div>
+                <div className="text-[11px] text-slate-400 truncate" title={topTopicsSummary}>{topTopicsSummary}</div>
               </div>
 
               <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800/80 space-y-1 hover:border-purple-500/40 transition-all">
@@ -341,7 +363,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                   </span>
                 </div>
                 <span className="text-[10px] font-mono text-slate-400 font-semibold tracking-wider uppercase mt-0.5">
-                  Production Curriculum & Labs
+                  {enabledCount} Production Modules & Labs
                 </span>
               </div>
             </div>

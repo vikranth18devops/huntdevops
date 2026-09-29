@@ -444,7 +444,7 @@ export function App() {
 
   // ROUTE 2: Unauthenticated Guard for Learner Platform
   if (!user) {
-    return <LoginPage onLoginSuccess={(loggedInUser) => setUser(loggedInUser)} />;
+    return <LoginPage onLoginSuccess={(loggedInUser) => setUser(loggedInUser)} topics={topics} />;
   }
 
   // ROUTE 3: Authenticated View for Learner Platform (/)
