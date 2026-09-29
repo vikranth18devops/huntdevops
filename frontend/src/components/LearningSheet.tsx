@@ -595,7 +595,7 @@ export const LearningSheet: React.FC<LearningSheetProps> = ({
                             </div>
 
                             <h4 className="text-base font-black text-slate-900 leading-snug">
-                              {res.item.why ? `What is the command to: ${res.item.why}` : `Command requirement for ${res.item.label}`}
+                              {res.item.label || res.item.why || 'Question Requirement'}
                             </h4>
                           </div>
                         </div>
@@ -812,7 +812,7 @@ export const LearningSheet: React.FC<LearningSheetProps> = ({
                             </div>
 
                             <h4 className="text-base font-black text-slate-900 leading-snug">
-                              {item.why ? `What is the command to: ${item.why}` : `Command requirement for ${item.label}`}
+                              {item.label || item.why || 'Question Requirement'}
                             </h4>
                           </div>
 

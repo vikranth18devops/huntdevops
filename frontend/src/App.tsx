@@ -31,6 +31,17 @@ import {
 } from './services/api';
 import { Sparkles, Award, Flame, X, ShieldAlert, BookOpen } from 'lucide-react';
 
+// Helper to safely write to localStorage without crashing on QuotaExceededError
+export function safeLocalStorageSet(key: string, value: string): boolean {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch (err) {
+    console.warn(`[HuntDevOps Storage] Browser localStorage quota exceeded or unavailable for key '${key}'. PostgreSQL Cloud SQL remains the single source of truth.`, err);
+    return false;
+  }
+}
+
 export function App() {
   // Routing state for /admin vs /
   const [currentPath, setCurrentPath] = useState<string>(() => {
@@ -67,7 +78,7 @@ export function App() {
 
   const handleUpdatePlatformSettings = (newSettings: PlatformSettings) => {
     setPlatformSettings(newSettings);
-    localStorage.setItem('huntdevops_platform_settings', JSON.stringify(newSettings));
+    safeLocalStorageSet('huntdevops_platform_settings', JSON.stringify(newSettings));
     savePlatformSettingsApi(newSettings);
 
     if (!newSettings.isLearningPathEnabled && activeTab === 'sheet') {
@@ -89,7 +100,7 @@ export function App() {
 
   const handleUpdateTopics = (newTopics: Topic[]) => {
     setTopics(newTopics);
-    localStorage.setItem('huntdevops_topics', JSON.stringify(newTopics));
+    safeLocalStorageSet('huntdevops_topics', JSON.stringify(newTopics));
     saveTopicsApi(newTopics);
   };
 
@@ -108,7 +119,7 @@ export function App() {
 
   const handleUpdateUserStore = (newUsers: UserRecord[]) => {
     setUserStore(newUsers);
-    localStorage.setItem('huntdevops_user_store', JSON.stringify(newUsers));
+    safeLocalStorageSet('huntdevops_user_store', JSON.stringify(newUsers));
 
     if (user?.username) {
       const match = newUsers.find(u => u.username.toLowerCase() === user.username.toLowerCase());
@@ -121,7 +132,7 @@ export function App() {
           role: match.role || user.role
         };
         setUser(updatedUser);
-        localStorage.setItem('huntdevops_user', JSON.stringify(updatedUser));
+        safeLocalStorageSet('huntdevops_user', JSON.stringify(updatedUser));
       }
     }
   };
@@ -138,7 +149,7 @@ export function App() {
 
   const handleUpdateChallenges = (newChallenges: Challenge[]) => {
     setChallengesList(newChallenges);
-    localStorage.setItem('huntdevops_challenges', JSON.stringify(newChallenges));
+    safeLocalStorageSet('huntdevops_challenges', JSON.stringify(newChallenges));
     saveLabsApi(newChallenges);
   };
 
@@ -147,7 +158,7 @@ export function App() {
     fetchPlatformSettingsApi().then(settings => {
       if (settings) {
         setPlatformSettings(settings);
-        localStorage.setItem('huntdevops_platform_settings', JSON.stringify(settings));
+        safeLocalStorageSet('huntdevops_platform_settings', JSON.stringify(settings));
         if (!settings.isLearningPathEnabled && activeTab === 'sheet') {
           setActiveTab('practice');
         } else if (!settings.isTroubleshootingLabsEnabled && activeTab === 'practice') {
@@ -159,21 +170,21 @@ export function App() {
     fetchAllUsersApi().then(dbUsers => {
       if (Array.isArray(dbUsers) && dbUsers.length > 0) {
         setUserStore(dbUsers);
-        localStorage.setItem('huntdevops_user_store', JSON.stringify(dbUsers));
+        safeLocalStorageSet('huntdevops_user_store', JSON.stringify(dbUsers));
       }
     });
 
     fetchTopicsApi().then(dbTopics => {
       if (Array.isArray(dbTopics) && dbTopics.length > 0) {
         setTopics(dbTopics);
-        localStorage.setItem('huntdevops_topics', JSON.stringify(dbTopics));
+        safeLocalStorageSet('huntdevops_topics', JSON.stringify(dbTopics));
       }
     });
 
     fetchLabsApi().then(dbLabs => {
       if (Array.isArray(dbLabs) && dbLabs.length > 0) {
         setChallengesList(dbLabs);
-        localStorage.setItem('huntdevops_challenges', JSON.stringify(dbLabs));
+        safeLocalStorageSet('huntdevops_challenges', JSON.stringify(dbLabs));
       }
     });
   }, [currentPath]);

@@ -541,7 +541,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     fetchActivityLogsApi().then(dbLogs => {
       if (Array.isArray(dbLogs)) {
         setLiveLogs(dbLogs);
-        localStorage.setItem('huntdevops_activity_logs', JSON.stringify(dbLogs));
+        try {
+          localStorage.setItem('huntdevops_activity_logs', JSON.stringify(dbLogs));
+        } catch {}
       }
     });
   }, [activeTab]);
@@ -549,7 +551,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const handleDeleteActivityLog = async (logId: string) => {
     const updated = liveLogs.filter(l => l.id !== logId);
     setLiveLogs(updated);
-    localStorage.setItem('huntdevops_activity_logs', JSON.stringify(updated));
+    try {
+      localStorage.setItem('huntdevops_activity_logs', JSON.stringify(updated));
+    } catch {}
     deleteActivityLogApi(logId).catch(err => console.warn('Delete activity log sync:', err));
     showToast('Activity audit log entry deleted.');
   };
@@ -558,7 +562,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     if (liveLogs.length === 0) return;
     if (confirm('Are you sure you want to permanently delete all Live System Activity & Registration Audit logs from Cloud SQL?')) {
       setLiveLogs([]);
-      localStorage.setItem('huntdevops_activity_logs', JSON.stringify([]));
+      try {
+        localStorage.setItem('huntdevops_activity_logs', JSON.stringify([]));
+      } catch {}
       purgeActivityLogsApi().catch(err => console.warn('Purge activity logs sync:', err));
       showToast('All activity audit logs purged successfully.');
     }
