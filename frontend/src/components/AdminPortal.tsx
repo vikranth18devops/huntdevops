@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { logUserActivity, detectDeviceOS } from '../utils/activityStore';
 import { 
   X,
@@ -52,6 +52,15 @@ import {
 import { getItemExperienceLevel, type Topic, type Section, type CommandItem } from '../data/sheetData';
 import { CHALLENGES, type Challenge } from '../data/practiceData';
 import { getActivityLogs, getUserStreak } from '../utils/activityStore';
+import {
+  createUserApi,
+  deleteUserApi,
+  updateUserStatusApi,
+  updateUserExperienceLevelApi,
+  resetUserPasswordApi,
+  fetchActivityLogsApi
+} from '../services/api';
+
 
 export interface UserRecord {
   id: string;
@@ -441,9 +450,22 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   // Tab State
   const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'cms' | 'labs' | 'audit'>('dashboard');
 
+  // Live Activity Logs from Cloud SQL
+  const [liveLogs, setLiveLogs] = useState(() => getActivityLogs());
+
+  useEffect(() => {
+    fetchActivityLogsApi().then(dbLogs => {
+      if (Array.isArray(dbLogs)) {
+        setLiveLogs(dbLogs);
+        localStorage.setItem('huntdevops_activity_logs', JSON.stringify(dbLogs));
+      }
+    });
+  }, [activeTab]);
+
   // Dashboard Pagination State (5 items per page)
   const [leaderboardPage, setLeaderboardPage] = useState(1);
   const [activityFeedPage, setActivityFeedPage] = useState(1);
+
 
   // Individual User Performance Report Modal State
   const [selectedReportUser, setSelectedReportUser] = useState<UserRecord | null>(null);
@@ -859,6 +881,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       createdAt: new Date().toISOString().split('T')[0]
     };
 
+    createUserApi(newUserObj).catch(err => console.warn('Cloud SQL create user sync:', err));
     onUpdateUsers([newUserObj, ...users]);
     showToast(`User @${newUserObj.username} created successfully!`);
     setIsAddingUser(false);
@@ -870,6 +893,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
   const handleDeleteUser = (userId: string, username: string) => {
     if (confirm(`Are you sure you want to delete user @${username}?`)) {
+      deleteUserApi(userId).catch(err => console.warn('Cloud SQL delete user sync:', err));
       const updated = users.filter(u => u.id !== userId);
       onUpdateUsers(updated);
       showToast(`User @${username} removed successfully.`);
@@ -880,6 +904,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     e.preventDefault();
     if (!resetTargetUser || !resetPasswordInput.trim()) return;
 
+    resetUserPasswordApi(resetTargetUser.id, resetPasswordInput.trim()).catch(err => console.warn('Cloud SQL password reset sync:', err));
     const updated = users.map(u => {
       if (u.id === resetTargetUser.id) {
         return { ...u, password: resetPasswordInput.trim() };
@@ -894,6 +919,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   };
 
   const handleChangeUserExperienceLevel = (userId: string, newLevel: 'Beginner' | 'Intermediate' | 'Advanced') => {
+    updateUserExperienceLevelApi(userId, newLevel).catch(err => console.warn('Cloud SQL level update sync:', err));
     const updated = users.map(u => {
       if (u.id === userId) {
         try {
@@ -917,9 +943,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   };
 
   const toggleUserStatus = (userId: string) => {
+    const target = users.find(u => u.id === userId);
+    const nextStatus: UserRecord['status'] = target?.status === 'Active' ? 'Suspended' : 'Active';
+    updateUserStatusApi(userId, nextStatus).catch(err => console.warn('Cloud SQL status update sync:', err));
     const updated = users.map(u => {
       if (u.id === userId) {
-        const nextStatus: UserRecord['status'] = u.status === 'Active' ? 'Suspended' : 'Active';
         showToast(`User @${u.username} status set to ${nextStatus}.`);
         return { ...u, status: nextStatus };
       }
@@ -2272,7 +2300,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
             {/* LIVE SYSTEM ACTIVITY & REGISTRATION AUDIT FEED WITH PAGINATION */}
             {(() => {
-              const allActivities = getActivityLogs();
+              const allActivities = liveLogs;
               const totalActivityPages = Math.ceil(allActivities.length / 5) || 1;
               const currentActivityPage = Math.min(activityFeedPage, totalActivityPages);
               const paginatedActivities = allActivities.slice(

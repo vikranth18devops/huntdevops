@@ -29,55 +29,20 @@ export function detectDeviceOS(): string {
   return 'Desktop Web Browser';
 }
 
-const DEFAULT_ACTIVITIES: UserActivity[] = [
-  {
-    id: 'act_101',
-    username: 'admin',
-    type: 'ACCOUNT_CREATED',
-    title: 'Super Admin Account Initialized',
-    details: 'System administrator registered with full management rights.',
-    deviceOS: 'MacBook / macOS',
-    timestamp: '2026-01-15 09:00:00'
-  },
-  {
-    id: 'act_102',
-    username: 'alex_sre',
-    type: 'ACCOUNT_CREATED',
-    title: 'New Learner Account Created',
-    details: 'Alex Morgan registered with email alex.m@cloudcorp.com',
-    deviceOS: 'MacBook / macOS',
-    timestamp: '2026-02-10 14:32:10'
-  },
-  {
-    id: 'act_103',
-    username: 'priya_k8s',
-    type: 'QUIZ_COMPLETED',
-    title: 'Passed Kubernetes Fundamentals Quiz',
-    details: 'Scored 88% accuracy (Passed 75% benchmark threshold).',
-    deviceOS: 'Windows PC',
-    timestamp: '2026-09-26 11:15:40'
-  },
-  {
-    id: 'act_104',
-    username: 'david_kim',
-    type: 'LAB_SOLVED',
-    title: 'Solved Pod CrashLoopBackOff Lab',
-    details: 'Diagnosed OOMKilled container memory limit in 4 mins.',
-    deviceOS: 'Android Mobile',
-    timestamp: '2026-09-27 15:20:00'
-  }
-];
-
 export function getActivityLogs(): UserActivity[] {
   try {
     const saved = localStorage.getItem('huntdevops_activity_logs');
     if (!saved) {
-      localStorage.setItem('huntdevops_activity_logs', JSON.stringify(DEFAULT_ACTIVITIES));
-      return DEFAULT_ACTIVITIES;
+      return [];
     }
-    return JSON.parse(saved);
+    const parsed = JSON.parse(saved);
+    // Filter out any legacy mock logs
+    const cleaned = Array.isArray(parsed)
+      ? parsed.filter(l => !['act_101', 'act_102', 'act_103', 'act_104'].includes(l.id) && !['alex_sre', 'priya_k8s', 'david_kim'].includes(l.username))
+      : [];
+    return cleaned;
   } catch {
-    return DEFAULT_ACTIVITIES;
+    return [];
   }
 }
 

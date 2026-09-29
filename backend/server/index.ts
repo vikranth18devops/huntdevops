@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { pool, initDatabase, getIsPostgresAvailable } from './db';
+import { populateRealtimeDatabase } from './initData';
 
 dotenv.config();
 
@@ -9,14 +10,7 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
-
-// In-Memory Fallback Stores if DB is initializing
-let inMemoryUsers: any[] = [];
-let inMemoryTopics: any[] = [];
-let inMemoryCompletions: Record<string, string[]> = {};
-let inMemorySolved: Record<string, string[]> = {};
-let inMemoryLogs: any[] = [];
+app.use(express.json({ limit: '20mb' }));
 
 // -------------------------------------------------------------
 // 1. Healthcheck Endpoint
@@ -24,7 +18,7 @@ let inMemoryLogs: any[] = [];
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'online',
-    database: getIsPostgresAvailable() ? 'PostgreSQL (Connected)' : 'Fallback Dynamic Store',
+    database: getIsPostgresAvailable() ? 'PostgreSQL (Connected)' : 'Disconnected',
     timestamp: new Date().toISOString()
   });
 });
@@ -44,12 +38,12 @@ app.post('/api/auth/register', async (req, res) => {
     username: username.trim(),
     displayName: displayName ? displayName.trim() : username.trim(),
     email: email.trim(),
-    phone: phone ? phone.trim() : undefined,
+    phone: phone ? phone.trim() : null,
     password: password,
     role: role || 'Learner',
     experienceLevel: experienceLevel || 'Beginner',
     status: 'Active',
-    lastDeviceOS: lastDeviceOS || 'MacBook / macOS',
+    lastDeviceOS: lastDeviceOS || 'Desktop Web Browser',
     createdAt: new Date().toISOString().split('T')[0]
   };
 
@@ -66,15 +60,15 @@ app.post('/api/auth/register', async (req, res) => {
            last_device_os = EXCLUDED.last_device_os,
            phone = EXCLUDED.phone
          RETURNING id, username, display_name as "displayName", email, phone, role, experience_level as "experienceLevel", status, last_device_os as "lastDeviceOS", TO_CHAR(created_at, 'YYYY-MM-DD') as "createdAt"`,
-        [userObj.id, userObj.username, userObj.displayName, userObj.email, userObj.password, userObj.role, userObj.experienceLevel, userObj.status, userObj.lastDeviceOS, userObj.phone || null]
+        [userObj.id, userObj.username, userObj.displayName, userObj.email, userObj.password, userObj.role, userObj.experienceLevel, userObj.status, userObj.lastDeviceOS, userObj.phone]
       );
 
-      // Record activity log in PostgreSQL
+      // Record real activity log in PostgreSQL
       await pool.query(
         `INSERT INTO activity_logs (id, username, action_type, title, details, device_os)
          VALUES ($1, $2, $3, $4, $5, $6)`,
         [
-          `log_${Date.now()}`,
+          `act_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
           userObj.username,
           'ACCOUNT_CREATED',
           `New Account Registered: @${userObj.username}`,
@@ -88,17 +82,12 @@ app.post('/api/auth/register', async (req, res) => {
       if (err.code === '23505') {
         return res.status(400).json({ error: 'Username or email already registered.' });
       }
-      console.error(err);
+      console.error('Registration error:', err);
+      return res.status(500).json({ error: 'Failed to create user.' });
     }
   }
 
-  // Fallback Store
-  const existing = inMemoryUsers.find(u => u.username.toLowerCase() === username.toLowerCase() || u.email.toLowerCase() === email.toLowerCase());
-  if (existing) {
-    return res.status(400).json({ error: 'Username or email already registered.' });
-  }
-  inMemoryUsers.unshift(userObj);
-  return res.status(201).json({ user: userObj, token: `jwt_${userObj.id}` });
+  return res.status(503).json({ error: 'Database unavailable' });
 });
 
 app.post('/api/auth/login', async (req, res) => {
@@ -118,31 +107,26 @@ app.post('/api/auth/login', async (req, res) => {
           delete u.password_hash;
 
           // Record login activity in PostgreSQL
-          const device = lastDeviceOS || u.lastDeviceOS || 'MacBook / macOS';
+          const device = lastDeviceOS || u.lastDeviceOS || 'Desktop Web Browser';
           await pool.query(
             `INSERT INTO activity_logs (id, username, action_type, title, details, device_os)
              VALUES ($1, $2, $3, $4, $5, $6)`,
-            [`log_${Date.now()}`, u.username, 'USER_LOGIN', `User Signed In: @${u.username}`, `Device: ${device}`, device]
+            [`act_${Date.now()}_${Math.floor(Math.random() * 1000)}`, u.username, 'USER_LOGIN', `User Signed In: @${u.username}`, `Device: ${device}`, device]
           ).catch(() => {});
 
           return res.json({ user: u, token: `jwt_${u.id}` });
         }
       }
     } catch (err) {
-      console.error(err);
+      console.error('Login query error:', err);
     }
-  }
-
-  const u = inMemoryUsers.find(x => (x.username.toLowerCase() === username.toLowerCase() || x.email.toLowerCase() === username.toLowerCase()) && x.password === password);
-  if (u) {
-    return res.json({ user: u, token: `jwt_${u.id}` });
   }
 
   return res.status(401).json({ error: 'Invalid credentials.' });
 });
 
 // -------------------------------------------------------------
-// 3. User Management Endpoints (Admin Portal & Level Updates)
+// 3. User Management Endpoints (Admin Portal & User Settings)
 // -------------------------------------------------------------
 app.get('/api/users', async (req, res) => {
   if (getIsPostgresAvailable()) {
@@ -151,14 +135,53 @@ app.get('/api/users', async (req, res) => {
         `SELECT id, username, display_name as "displayName", email, phone, role, experience_level as "experienceLevel", status, last_device_os as "lastDeviceOS", TO_CHAR(created_at, 'YYYY-MM-DD') as "createdAt"
          FROM users ORDER BY created_at DESC`
       );
-      if (result.rows.length > 0) {
-        return res.json(result.rows);
-      }
+      return res.json(result.rows);
     } catch (err) {
-      console.error(err);
+      console.error('Error fetching users:', err);
+      return res.status(500).json({ error: 'Failed to fetch users.' });
     }
   }
-  return res.json(inMemoryUsers);
+  return res.json([]);
+});
+
+// Create new user from Admin Portal
+app.post('/api/users', async (req, res) => {
+  const { username, displayName, email, phone, role, experienceLevel, status, password, lastDeviceOS } = req.body;
+  if (!username) return res.status(400).json({ error: 'Username is required.' });
+
+  const id = `usr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+  const uName = username.trim();
+  const dName = displayName ? displayName.trim() : uName;
+  const uEmail = email ? email.trim() : `${uName}@huntdevops.io`;
+  const uRole = role || 'Learner';
+  const uExp = experienceLevel || 'Beginner';
+  const uStatus = status || 'Active';
+  const uDevice = lastDeviceOS || 'Desktop Web Browser';
+  const uPassword = password || 'huntdevops2026';
+
+  if (getIsPostgresAvailable()) {
+    try {
+      const result = await pool.query(
+        `INSERT INTO users (id, username, display_name, email, password_hash, role, experience_level, status, last_device_os, phone)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         ON CONFLICT (username) DO UPDATE SET
+           display_name = EXCLUDED.display_name,
+           email = EXCLUDED.email,
+           role = EXCLUDED.role,
+           experience_level = EXCLUDED.experience_level,
+           status = EXCLUDED.status,
+           last_device_os = EXCLUDED.last_device_os,
+           phone = EXCLUDED.phone
+         RETURNING id, username, display_name as "displayName", email, phone, role, experience_level as "experienceLevel", status, last_device_os as "lastDeviceOS", TO_CHAR(created_at, 'YYYY-MM-DD') as "createdAt"`,
+        [id, uName, dName, uEmail, uPassword, uRole, uExp, uStatus, uDevice, phone || null]
+      );
+      return res.json({ success: true, user: result.rows[0] });
+    } catch (err: any) {
+      console.error('Error creating user:', err);
+      return res.status(400).json({ error: err.message || 'Failed to create user.' });
+    }
+  }
+  return res.status(503).json({ error: 'Database unavailable' });
 });
 
 // Sync user to PostgreSQL database from Admin or Auth
@@ -173,7 +196,7 @@ app.post('/api/users/sync', async (req, res) => {
   const uRole = role || 'Learner';
   const uExp = experienceLevel || 'Beginner';
   const uStatus = status || 'Active';
-  const uDevice = lastDeviceOS || 'MacBook / macOS';
+  const uDevice = lastDeviceOS || 'Desktop Web Browser';
 
   if (getIsPostgresAvailable()) {
     try {
@@ -192,113 +215,112 @@ app.post('/api/users/sync', async (req, res) => {
       );
       return res.json({ success: true, user: result.rows[0] });
     } catch (err) {
-      console.error(err);
+      console.error('Error syncing user:', err);
     }
   }
 
   return res.json({ success: true });
 });
 
-// Logs Endpoint for Activity Tracking
-app.get('/api/logs', async (req, res) => {
+// Delete user from PostgreSQL
+app.delete('/api/users/:userId', async (req, res) => {
+  const { userId } = req.params;
+  if (getIsPostgresAvailable()) {
+    try {
+      // Find username first to clean up related rows
+      const userRes = await pool.query(`SELECT username FROM users WHERE id = $1 OR username = $1`, [userId]);
+      if (userRes.rows.length > 0) {
+        const uName = userRes.rows[0].username;
+        await pool.query(`DELETE FROM user_completions WHERE LOWER(username) = LOWER($1)`, [uName]);
+        await pool.query(`DELETE FROM user_lab_solutions WHERE LOWER(username) = LOWER($1)`, [uName]);
+        await pool.query(`DELETE FROM activity_logs WHERE LOWER(username) = LOWER($1)`, [uName]);
+        await pool.query(`DELETE FROM users WHERE id = $1 OR username = $1`, [userId]);
+      }
+      return res.json({ success: true, message: 'User deleted from PostgreSQL.' });
+    } catch (err: any) {
+      console.error('Error deleting user:', err);
+      return res.status(500).json({ error: err.message || 'Failed to delete user.' });
+    }
+  }
+  return res.status(503).json({ error: 'Database unavailable' });
+});
+
+// Update role (Admin / Learner)
+app.put('/api/users/:userId/role', async (req, res) => {
+  const { userId } = req.params;
+  const { role } = req.body;
   if (getIsPostgresAvailable()) {
     try {
       const result = await pool.query(
-        `SELECT id, username, action_type as "actionType", title, details, device_os as "deviceOS", TO_CHAR(timestamp, 'YYYY-MM-DD HH24:MI:SS') as "timestamp"
-         FROM activity_logs ORDER BY timestamp DESC LIMIT 150`
+        `UPDATE users SET role = $1 WHERE id = $2 OR username = $2 RETURNING id, username, role`,
+        [role, userId]
       );
-      return res.json(result.rows);
-    } catch (err) {
-      console.error(err);
+      return res.json({ success: true, user: result.rows[0] });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
     }
   }
-  return res.json(inMemoryLogs);
+  return res.status(503).json({ error: 'Database unavailable' });
 });
 
-app.post('/api/logs', async (req, res) => {
-  const { username, actionType, title, details, deviceOS } = req.body;
-  const id = `log_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-  const logObj = { id, username: username || 'System', actionType: actionType || 'GENERAL', title: title || '', details: details || '', deviceOS: deviceOS || 'MacBook / macOS', timestamp: new Date().toISOString() };
+// Update status (Active / Suspended)
+app.put('/api/users/:userId/status', async (req, res) => {
+  const { userId } = req.params;
+  const { status } = req.body;
+  if (getIsPostgresAvailable()) {
+    try {
+      const result = await pool.query(
+        `UPDATE users SET status = $1 WHERE id = $2 OR username = $2 RETURNING id, username, status`,
+        [status, userId]
+      );
+      return res.json({ success: true, user: result.rows[0] });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+  return res.status(503).json({ error: 'Database unavailable' });
+});
+
+// Update experience level
+app.put('/api/users/:userId/experience-level', async (req, res) => {
+  const { userId } = req.params;
+  const { experienceLevel } = req.body;
+  if (getIsPostgresAvailable()) {
+    try {
+      const result = await pool.query(
+        `UPDATE users SET experience_level = $1 WHERE id = $2 OR username = $2 RETURNING id, username, experience_level as "experienceLevel"`,
+        [experienceLevel, userId]
+      );
+      return res.json({ success: true, user: result.rows[0] });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+  return res.status(503).json({ error: 'Database unavailable' });
+});
+
+// Reset user password
+app.put('/api/users/:userId/password', async (req, res) => {
+  const { userId } = req.params;
+  const { newPassword } = req.body;
+  if (!newPassword) return res.status(400).json({ error: 'newPassword is required.' });
 
   if (getIsPostgresAvailable()) {
     try {
       await pool.query(
-        `INSERT INTO activity_logs (id, username, action_type, title, details, device_os)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [id, logObj.username, logObj.actionType, logObj.title, logObj.details, logObj.deviceOS]
+        `UPDATE users SET password_hash = $1 WHERE id = $2 OR username = $2`,
+        [newPassword, userId]
       );
-      return res.json({ success: true, log: logObj });
-    } catch (err) {
-      console.error(err);
+      return res.json({ success: true, message: 'Password updated successfully.' });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
     }
   }
-
-  inMemoryLogs.unshift(logObj);
-  return res.json({ success: true, log: logObj });
-});
-
-
-// PUT /api/users/:userId/experience-level - UPDATE DEVOPS EXPERIENCE LEVEL
-app.put('/api/users/:userId/experience-level', async (req, res) => {
-  const { userId } = req.params;
-  const { experienceLevel } = req.body;
-
-  if (!['Beginner', 'Intermediate', 'Advanced'].includes(experienceLevel)) {
-    return res.status(400).json({ error: 'Invalid experience level.' });
-  }
-
-  if (getIsPostgresAvailable()) {
-    try {
-      const result = await pool.query(
-        `UPDATE users SET experience_level = $1 WHERE id = $2 OR username = $2
-         RETURNING id, username, display_name as "displayName", email, role, experience_level as "experienceLevel", status`,
-        [experienceLevel, userId]
-      );
-      if (result.rows.length > 0) {
-        return res.json({ success: true, user: result.rows[0] });
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  }
-
-  const u = inMemoryUsers.find(x => x.id === userId || x.username === userId);
-  if (u) {
-    u.experienceLevel = experienceLevel;
-    return res.json({ success: true, user: u });
-  }
-
-  return res.status(404).json({ error: 'User not found.' });
-});
-
-// PUT /api/users/:userId/status - SUSPEND / ACTIVATE
-app.put('/api/users/:userId/status', async (req, res) => {
-  const { userId } = req.params;
-  const { status } = req.body;
-
-  if (getIsPostgresAvailable()) {
-    try {
-      const result = await pool.query(
-        `UPDATE users SET status = $1 WHERE id = $2 RETURNING id, username, status`,
-        [status, userId]
-      );
-      return res.json({ success: true, user: result.rows[0] });
-    } catch (err) {
-      console.error(err);
-    }
-  }
-
-  const u = inMemoryUsers.find(x => x.id === userId);
-  if (u) {
-    u.status = status;
-    return res.json({ success: true, user: u });
-  }
-
-  return res.status(404).json({ error: 'User not found.' });
+  return res.status(503).json({ error: 'Database unavailable' });
 });
 
 // -------------------------------------------------------------
-// 4. Curriculum Topics & CMS Endpoints
+// 4. Curriculum Topics Endpoints (PostgreSQL topics table)
 // -------------------------------------------------------------
 app.get('/api/topics', async (req, res) => {
   if (getIsPostgresAvailable()) {
@@ -308,10 +330,10 @@ app.get('/api/topics', async (req, res) => {
         return res.json(result.rows.map(r => r.data_json));
       }
     } catch (err) {
-      console.error(err);
+      console.error('Error fetching topics from PostgreSQL:', err);
     }
   }
-  return res.json(inMemoryTopics);
+  return res.json([]);
 });
 
 app.post('/api/topics', async (req, res) => {
@@ -326,22 +348,100 @@ app.post('/api/topics', async (req, res) => {
         await pool.query(
           `INSERT INTO topics (id, title, subtitle, data_json, updated_at)
            VALUES ($1, $2, $3, $4, NOW())
-           ON CONFLICT (id) DO UPDATE SET data_json = EXCLUDED.data_json, updated_at = NOW()`,
+           ON CONFLICT (id) DO UPDATE SET
+             title = EXCLUDED.title,
+             subtitle = EXCLUDED.subtitle,
+             data_json = EXCLUDED.data_json,
+             updated_at = NOW()`,
           [t.id, t.title, t.subtitle || '', JSON.stringify(t)]
         );
       }
-      return res.json({ success: true, message: 'Topics saved to PostgreSQL.' });
-    } catch (err) {
-      console.error(err);
+      return res.json({ success: true, message: 'Topics successfully saved to Cloud SQL PostgreSQL.' });
+    } catch (err: any) {
+      console.error('Error saving topics to PostgreSQL:', err);
+      return res.status(500).json({ error: err.message || 'Failed to save topics.' });
     }
   }
 
-  inMemoryTopics = topics;
-  return res.json({ success: true, message: 'Topics updated.' });
+  return res.status(503).json({ error: 'Database unavailable' });
+});
+
+app.delete('/api/topics/:id', async (req, res) => {
+  const { id } = req.params;
+  if (getIsPostgresAvailable()) {
+    try {
+      await pool.query(`DELETE FROM topics WHERE id = $1`, [id]);
+      return res.json({ success: true, message: `Topic ${id} deleted from Cloud SQL.` });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+  return res.status(503).json({ error: 'Database unavailable' });
 });
 
 // -------------------------------------------------------------
-// 5. User Progress & Completions Endpoints
+// 5. Incident Troubleshooting Labs Endpoints (PostgreSQL incident_labs table)
+// -------------------------------------------------------------
+app.get('/api/labs', async (req, res) => {
+  if (getIsPostgresAvailable()) {
+    try {
+      const result = await pool.query(`SELECT data_json FROM incident_labs ORDER BY id ASC`);
+      if (result.rows.length > 0) {
+        return res.json(result.rows.map(r => r.data_json));
+      }
+    } catch (err) {
+      console.error('Error fetching incident labs from PostgreSQL:', err);
+    }
+  }
+  return res.json([]);
+});
+
+app.post('/api/labs', async (req, res) => {
+  const { labs } = req.body;
+  if (!Array.isArray(labs)) {
+    return res.status(400).json({ error: 'Labs payload must be an array.' });
+  }
+
+  if (getIsPostgresAvailable()) {
+    try {
+      for (const l of labs) {
+        await pool.query(
+          `INSERT INTO incident_labs (id, title, topic, experience_level, data_json, updated_at)
+           VALUES ($1, $2, $3, $4, $5, NOW())
+           ON CONFLICT (id) DO UPDATE SET
+             title = EXCLUDED.title,
+             topic = EXCLUDED.topic,
+             experience_level = EXCLUDED.experience_level,
+             data_json = EXCLUDED.data_json,
+             updated_at = NOW()`,
+          [l.id, l.title, l.topic, l.experienceLevel || 'Intermediate', JSON.stringify(l)]
+        );
+      }
+      return res.json({ success: true, message: 'Incident labs saved to Cloud SQL PostgreSQL.' });
+    } catch (err: any) {
+      console.error('Error saving incident labs to PostgreSQL:', err);
+      return res.status(500).json({ error: err.message || 'Failed to save labs.' });
+    }
+  }
+
+  return res.status(503).json({ error: 'Database unavailable' });
+});
+
+app.delete('/api/labs/:id', async (req, res) => {
+  const { id } = req.params;
+  if (getIsPostgresAvailable()) {
+    try {
+      await pool.query(`DELETE FROM incident_labs WHERE id = $1`, [id]);
+      return res.json({ success: true, message: `Lab ${id} deleted from Cloud SQL.` });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+  return res.status(503).json({ error: 'Database unavailable' });
+});
+
+// -------------------------------------------------------------
+// 6. User Progress & Real-time Completions (PostgreSQL tables)
 // -------------------------------------------------------------
 app.get('/api/progress/:username', async (req, res) => {
   const { username } = req.params;
@@ -349,21 +449,27 @@ app.get('/api/progress/:username', async (req, res) => {
 
   if (getIsPostgresAvailable()) {
     try {
-      const compRes = await pool.query(`SELECT question_id FROM user_completions WHERE LOWER(username) = $1`, [uKey]);
-      const solvedRes = await pool.query(`SELECT lab_id FROM user_lab_solutions WHERE LOWER(username) = $1`, [uKey]);
+      const compRes = await pool.query(
+        `SELECT question_id FROM user_completions WHERE LOWER(username) = $1`,
+        [uKey]
+      );
+      const solvedRes = await pool.query(
+        `SELECT lab_id FROM user_lab_solutions WHERE LOWER(username) = $1`,
+        [uKey]
+      );
 
       return res.json({
         completedQuestionIds: compRes.rows.map(r => r.question_id),
         solvedLabIds: solvedRes.rows.map(r => r.lab_id)
       });
     } catch (err) {
-      console.error(err);
+      console.error('Error fetching progress from PostgreSQL:', err);
     }
   }
 
   return res.json({
-    completedQuestionIds: inMemoryCompletions[uKey] || [],
-    solvedLabIds: inMemorySolved[uKey] || []
+    completedQuestionIds: [],
+    solvedLabIds: []
   });
 });
 
@@ -381,19 +487,158 @@ app.post('/api/progress/complete-question', async (req, res) => {
       );
       return res.json({ success: true });
     } catch (err) {
-      console.error(err);
+      console.error('Error saving completed question:', err);
+      return res.status(500).json({ error: 'Database error' });
+    }
+  }
+  return res.status(503).json({ error: 'Database unavailable' });
+});
+
+app.post('/api/progress/uncomplete-question', async (req, res) => {
+  const { username, questionId } = req.body;
+  if (!username || !questionId) return res.status(400).json({ error: 'Missing username or questionId' });
+
+  const uKey = username.toLowerCase();
+
+  if (getIsPostgresAvailable()) {
+    try {
+      await pool.query(
+        `DELETE FROM user_completions WHERE LOWER(username) = $1 AND question_id = $2`,
+        [uKey, questionId]
+      );
+      return res.json({ success: true });
+    } catch (err) {
+      console.error('Error removing completed question:', err);
+      return res.status(500).json({ error: 'Database error' });
+    }
+  }
+  return res.status(503).json({ error: 'Database unavailable' });
+});
+
+app.post('/api/progress/solve-lab', async (req, res) => {
+  const { username, labId } = req.body;
+  if (!username || !labId) return res.status(400).json({ error: 'Missing username or labId' });
+
+  const uKey = username.toLowerCase();
+
+  if (getIsPostgresAvailable()) {
+    try {
+      await pool.query(
+        `INSERT INTO user_lab_solutions (username, lab_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+        [uKey, labId]
+      );
+      return res.json({ success: true });
+    } catch (err) {
+      console.error('Error saving lab solution:', err);
+      return res.status(500).json({ error: 'Database error' });
+    }
+  }
+  return res.status(503).json({ error: 'Database unavailable' });
+});
+
+app.post('/api/progress/unsolve-lab', async (req, res) => {
+  const { username, labId } = req.body;
+  if (!username || !labId) return res.status(400).json({ error: 'Missing username or labId' });
+
+  const uKey = username.toLowerCase();
+
+  if (getIsPostgresAvailable()) {
+    try {
+      await pool.query(
+        `DELETE FROM user_lab_solutions WHERE LOWER(username) = $1 AND lab_id = $2`,
+        [uKey, labId]
+      );
+      return res.json({ success: true });
+    } catch (err) {
+      console.error('Error removing lab solution:', err);
+      return res.status(500).json({ error: 'Database error' });
+    }
+  }
+  return res.status(503).json({ error: 'Database unavailable' });
+});
+
+app.post('/api/progress/reset', async (req, res) => {
+  const { username } = req.body;
+  if (!username) return res.status(400).json({ error: 'Missing username' });
+
+  const uKey = username.toLowerCase();
+
+  if (getIsPostgresAvailable()) {
+    try {
+      await pool.query(`DELETE FROM user_completions WHERE LOWER(username) = $1`, [uKey]);
+      await pool.query(`DELETE FROM user_lab_solutions WHERE LOWER(username) = $1`, [uKey]);
+      return res.json({ success: true });
+    } catch (err) {
+      console.error('Error resetting user progress:', err);
+      return res.status(500).json({ error: 'Database error' });
+    }
+  }
+  return res.status(503).json({ error: 'Database unavailable' });
+});
+
+// -------------------------------------------------------------
+// 7. Audit & Activity Logs Endpoints (PostgreSQL activity_logs table)
+// -------------------------------------------------------------
+app.get('/api/logs', async (req, res) => {
+  if (getIsPostgresAvailable()) {
+    try {
+      const result = await pool.query(
+        `SELECT id, username, action_type as "type", title, details, device_os as "deviceOS", TO_CHAR(timestamp, 'YYYY-MM-DD HH24:MI:SS') as "timestamp"
+         FROM activity_logs ORDER BY timestamp DESC LIMIT 200`
+      );
+      return res.json(result.rows);
+    } catch (err) {
+      console.error('Error fetching activity logs from PostgreSQL:', err);
+    }
+  }
+  return res.json([]);
+});
+
+app.post('/api/logs', async (req, res) => {
+  const { username, actionType, type, title, details, deviceOS } = req.body;
+  const id = `act_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+  const aType = actionType || type || 'GENERAL';
+  const uName = username || 'System';
+  const logTitle = title || '';
+  const logDetails = details || '';
+  const logDevice = deviceOS || 'Desktop Web Browser';
+
+  if (getIsPostgresAvailable()) {
+    try {
+      await pool.query(
+        `INSERT INTO activity_logs (id, username, action_type, title, details, device_os)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [id, uName, aType, logTitle, logDetails, logDevice]
+      );
+      return res.json({
+        success: true,
+        log: { id, username: uName, type: aType, title: logTitle, details: logDetails, deviceOS: logDevice, timestamp: new Date().toISOString() }
+      });
+    } catch (err) {
+      console.error('Error inserting activity log:', err);
     }
   }
 
-  if (!inMemoryCompletions[uKey]) inMemoryCompletions[uKey] = [];
-  if (!inMemoryCompletions[uKey].includes(questionId)) {
-    inMemoryCompletions[uKey].push(questionId);
-  }
   return res.json({ success: true });
 });
 
-// Initialize DB and start server
-initDatabase().then(() => {
+app.delete('/api/logs', async (req, res) => {
+  if (getIsPostgresAvailable()) {
+    try {
+      await pool.query(`DELETE FROM activity_logs`);
+      return res.json({ success: true, message: 'Activity logs purged from Cloud SQL.' });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+  return res.status(503).json({ error: 'Database unavailable' });
+});
+
+// -------------------------------------------------------------
+// 8. Server Boot & Auto Real-Time Sync
+// -------------------------------------------------------------
+initDatabase().then(async () => {
+  await populateRealtimeDatabase();
   app.listen(PORT, () => {
     console.log(`🚀 Production Backend API running on http://localhost:${PORT}`);
   });

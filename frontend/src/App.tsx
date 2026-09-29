@@ -12,54 +12,19 @@ import { LoginPage } from './components/LoginPage';
 import { TOPICS, type Topic } from './data/sheetData';
 import { CHALLENGES, type Challenge } from './data/practiceData';
 import { logUserActivity, detectDeviceOS, updateUserStreakOnLogin } from './utils/activityStore';
+import {
+  fetchAllUsersApi,
+  fetchTopicsApi,
+  saveTopicsApi,
+  fetchLabsApi,
+  saveLabsApi,
+  fetchUserProgressApi,
+  recordQuestionCompletionApi,
+  recordQuestionUncompletionApi,
+  recordLabSolutionApi,
+  resetUserProgressApi
+} from './services/api';
 import { Sparkles, Award, Flame, X } from 'lucide-react';
-
-const DEFAULT_USERS: UserRecord[] = [
-  {
-    id: 'usr_001',
-    username: 'admin',
-    displayName: 'Super Admin',
-    email: 'admin@huntdevops.io',
-    password: 'admin123',
-    role: 'Admin',
-    experienceLevel: 'Advanced',
-    status: 'Active',
-    createdAt: '2026-01-15'
-  },
-  {
-    id: 'usr_002',
-    username: 'alex_sre',
-    displayName: 'Alex Morgan',
-    email: 'alex.m@cloudcorp.com',
-    password: 'devops2026',
-    role: 'DevOps Lead',
-    experienceLevel: 'Advanced',
-    status: 'Active',
-    createdAt: '2026-02-10'
-  },
-  {
-    id: 'usr_003',
-    username: 'priya_k8s',
-    displayName: 'Priya Sharma',
-    email: 'priya@techscale.io',
-    password: 'cloud2026',
-    role: 'SRE Pro',
-    experienceLevel: 'Intermediate',
-    status: 'Active',
-    createdAt: '2026-02-28'
-  },
-  {
-    id: 'usr_004',
-    username: 'david_kim',
-    displayName: 'David Kim',
-    email: 'dkim@startuplab.dev',
-    password: 'learner123',
-    role: 'Learner',
-    experienceLevel: 'Beginner',
-    status: 'Active',
-    createdAt: '2026-03-04'
-  }
-];
 
 export function App() {
   // Routing state for /admin vs /
@@ -85,7 +50,7 @@ export function App() {
     setCurrentPath(path);
   };
 
-  // Dynamic Curriculum Topics state (persisted in localStorage)
+  // Dynamic Curriculum Topics state (backed by Cloud SQL PostgreSQL)
   const [topics, setTopics] = useState<Topic[]>(() => {
     try {
       const saved = localStorage.getItem('huntdevops_topics');
@@ -98,15 +63,19 @@ export function App() {
   const handleUpdateTopics = (newTopics: Topic[]) => {
     setTopics(newTopics);
     localStorage.setItem('huntdevops_topics', JSON.stringify(newTopics));
+    saveTopicsApi(newTopics);
   };
 
-  // Dynamic User Management Store (persisted in localStorage) 
+  // Dynamic User Management Store (backed by Cloud SQL PostgreSQL)
   const [userStore, setUserStore] = useState<UserRecord[]>(() => {
     try {
       const saved = localStorage.getItem('huntdevops_user_store');
-      return saved ? JSON.parse(saved) : DEFAULT_USERS;
+      if (!saved) return [];
+      const parsed: UserRecord[] = JSON.parse(saved);
+      // Remove any legacy mock users
+      return parsed.filter(u => !['alex_sre', 'priya_k8s', 'david_kim'].includes(u.username.toLowerCase()));
     } catch {
-      return DEFAULT_USERS;
+      return [];
     }
   });
 
@@ -130,34 +99,7 @@ export function App() {
     }
   };
 
-  // Sync users with PostgreSQL backend whenever navigating to admin or on mount
-  useEffect(() => {
-    fetch('/api/users')
-      .then(res => res.ok ? res.json() : [])
-      .then(dbUsers => {
-        if (Array.isArray(dbUsers) && dbUsers.length > 0) {
-          setUserStore(prev => {
-            const merged = [...dbUsers];
-            prev.forEach(p => {
-              if (!merged.some(m => m.username.toLowerCase() === p.username.toLowerCase())) {
-                merged.push(p);
-              }
-            });
-            localStorage.setItem('huntdevops_user_store', JSON.stringify(merged));
-            return merged;
-          });
-        }
-      })
-      .catch(() => {});
-  }, [currentPath]);
-
-
-  // App UI Tab state ('sheet' | 'practice')
-  const [activeTab, setActiveTab] = useState<'sheet' | 'practice'>('sheet');
-  const [activeTopicId, setActiveTopicId] = useState<string>(topics[0]?.id || 'argocd');
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
-  // Dynamic Incident Labs Challenges state (persisted in localStorage)
+  // Dynamic Incident Labs Challenges state (backed by Cloud SQL PostgreSQL)
   const [challengesList, setChallengesList] = useState<Challenge[]>(() => {
     try {
       const saved = localStorage.getItem('huntdevops_challenges');
@@ -170,7 +112,39 @@ export function App() {
   const handleUpdateChallenges = (newChallenges: Challenge[]) => {
     setChallengesList(newChallenges);
     localStorage.setItem('huntdevops_challenges', JSON.stringify(newChallenges));
+    saveLabsApi(newChallenges);
   };
+
+  // Sync real-time data from Cloud SQL PostgreSQL on mount
+  useEffect(() => {
+    fetchAllUsersApi().then(dbUsers => {
+      if (Array.isArray(dbUsers) && dbUsers.length > 0) {
+        setUserStore(dbUsers);
+        localStorage.setItem('huntdevops_user_store', JSON.stringify(dbUsers));
+      }
+    });
+
+    fetchTopicsApi().then(dbTopics => {
+      if (Array.isArray(dbTopics) && dbTopics.length > 0) {
+        setTopics(dbTopics);
+        localStorage.setItem('huntdevops_topics', JSON.stringify(dbTopics));
+      }
+    });
+
+    fetchLabsApi().then(dbLabs => {
+      if (Array.isArray(dbLabs) && dbLabs.length > 0) {
+        setChallengesList(dbLabs);
+        localStorage.setItem('huntdevops_challenges', JSON.stringify(dbLabs));
+      }
+    });
+  }, [currentPath]);
+
+  // App UI Tab state ('sheet' | 'practice')
+  const [activeTab, setActiveTab] = useState<'sheet' | 'practice'>('sheet');
+  const [activeTopicId, setActiveTopicId] = useState<string>(topics[0]?.id || 'argocd');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
+
 
   // Authenticated user state
   const [user, setUser] = useState<{ username: string; displayName?: string; email?: string; phone?: string; role?: string; experienceLevel?: 'Beginner' | 'Intermediate' | 'Advanced' } | null>(() => {
@@ -227,25 +201,22 @@ export function App() {
   // User Streak state
   const [streakCount, setStreakCount] = useState<number>(1);
 
-  // Dynamic user progress loader on login / user switch
+  // Dynamic user progress loader on login / user switch (from Cloud SQL PostgreSQL)
   useEffect(() => {
     if (user?.username) {
       const updatedStreak = updateUserStreakOnLogin(user.username);
       setStreakCount(updatedStreak);
 
-      try {
-        const savedComp = localStorage.getItem(`huntdevops_completed_${user.username}`);
-        setCompletedIds(savedComp ? new Set(JSON.parse(savedComp)) : new Set());
-      } catch {
-        setCompletedIds(new Set());
-      }
-
-      try {
-        const savedSolved = localStorage.getItem(`huntdevops_solved_${user.username}`);
-        setSolvedIds(savedSolved ? new Set(JSON.parse(savedSolved)) : new Set());
-      } catch {
-        setSolvedIds(new Set());
-      }
+      fetchUserProgressApi(user.username).then(progress => {
+        if (progress) {
+          const compArr = progress.completedQuestionIds || [];
+          const solArr = progress.solvedLabIds || [];
+          setCompletedIds(new Set(compArr));
+          setSolvedIds(new Set(solArr));
+          localStorage.setItem(`huntdevops_completed_${user.username}`, JSON.stringify(compArr));
+          localStorage.setItem(`huntdevops_solved_${user.username}`, JSON.stringify(solArr));
+        }
+      });
     } else {
       setCompletedIds(new Set());
       setSolvedIds(new Set());
@@ -259,43 +230,51 @@ export function App() {
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
   const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
 
-  // Persist completed items per user
+  // Persist completed items per user in Cloud SQL PostgreSQL
   const toggleCompleted = (itemId: string) => {
     setCompletedIds(prev => {
       const next = new Set(prev);
-      if (next.has(itemId)) {
-        next.delete(itemId);
-      } else {
+      const isChecking = !next.has(itemId);
+      if (isChecking) {
         next.add(itemId);
+        if (user?.username) {
+          recordQuestionCompletionApi(user.username, itemId);
+          logUserActivity(
+            user.username,
+            'ITEM_CHECKED',
+            `Checked Practice Item (+25 XP)`,
+            `Completed checklist item ID: ${itemId}`
+          );
+        }
+      } else {
+        next.delete(itemId);
+        if (user?.username) {
+          recordQuestionUncompletionApi(user.username, itemId);
+        }
       }
       const arr = Array.from(next);
       if (user?.username) {
         localStorage.setItem(`huntdevops_completed_${user.username}`, JSON.stringify(arr));
-        logUserActivity(
-          user.username,
-          'ITEM_CHECKED',
-          `Checked Practice Item (+25 XP)`,
-          `Total completed items: ${arr.length}`
-        );
       }
       localStorage.setItem('huntdevops_completed', JSON.stringify(arr));
       return next;
     });
   };
 
-  // Persist solved challenges per user
+  // Persist solved challenges per user in Cloud SQL PostgreSQL
   const handleSolveChallenge = (challengeId: string) => {
     setSolvedIds(prev => {
       const next = new Set(prev);
       next.add(challengeId);
       const arr = Array.from(next);
       if (user?.username) {
+        recordLabSolutionApi(user.username, challengeId);
         localStorage.setItem(`huntdevops_solved_${user.username}`, JSON.stringify(arr));
         logUserActivity(
           user.username,
           'LAB_SOLVED',
           `Mastered Incident Lab Challenge (+150 XP)`,
-          `Total solved labs: ${arr.length}`
+          `Solved incident lab challenge ID: ${challengeId}`
         );
       }
       localStorage.setItem('huntdevops_solved', JSON.stringify(arr));
@@ -331,6 +310,7 @@ export function App() {
 
   const handleResetUserProgress = (targetUsername: string) => {
     const uKey = targetUsername.toLowerCase();
+    resetUserProgressApi(uKey);
     localStorage.removeItem(`huntdevops_completed_${uKey}`);
     localStorage.removeItem(`huntdevops_solved_${uKey}`);
     localStorage.removeItem(`huntdevops_completed_${targetUsername}`);
