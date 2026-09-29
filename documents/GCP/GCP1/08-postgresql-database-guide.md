@@ -421,10 +421,20 @@ FROM pg_stat_activity
 WHERE datname = 'huntdevops' AND state != 'idle';
 ```
 
+### 8. Real-Time Cloud SQL Persistence Architecture
+All 6 tables now store real application and user data exclusively:
+* **`users`**: Contains authenticated users and administrators registered via the platform. All static mock users (`alex_sre`, `priya_k8s`, `david_kim`) have been purged.
+* **`topics`**: Contains all 13 curriculum topics stored as JSONB. Admin updates in the CMS tab save directly to this table.
+* **`incident_labs`**: Contains troubleshooting lab scenarios. Admin updates in the Labs tab save directly to this table.
+* **`user_completions`**: Checkpoint question completions recorded in real-time per user.
+* **`user_lab_solutions`**: Solved incident challenges recorded in real-time per user.
+* **`activity_logs`**: Live audit events (`USER_LOGIN`, `USER_LOGOUT`, `ACCOUNT_CREATED`, `ITEM_CHECKED`, `LAB_SOLVED`, `PROGRESS_RESET`) recorded in real-time.
+
 ---
 
 ## ⏭️ Next Step
 
 Proceed to the complete access URLs, credentials, and validation guide:
 👉 **[10 - Live Access URLs & Credentials Guide](file:///Users/aarvik/Documents/huntdevops/documents/GCP/GCP1/10-access-urls-and-credentials.md)**
+
 
