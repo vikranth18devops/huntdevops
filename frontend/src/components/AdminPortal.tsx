@@ -862,6 +862,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const handleAdminLogout = () => {
     setIsAdminAuthenticated(false);
     localStorage.removeItem('huntdevops_admin_session');
+    setAdminPassword('');
+    showToast('Admin logged out successfully.');
   };
 
   // EXPORT USER REPORT FUNCTION (CSV / TXT DOWNLOAD)
@@ -1819,9 +1821,85 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     u.email.toLowerCase().includes(searchUser.toLowerCase())
   );
 
+  // Computed active modules and sub-modules counts
+  const activeTopics = useMemo(() => topics.filter(t => !t.disabled), [topics]);
+  const activeModulesCount = activeTopics.length;
+  const totalModulesCount = topics.length;
+
+  const activeSubmodulesCount = useMemo(() => {
+    return topics
+      .filter(t => !t.disabled)
+      .reduce((acc, t) => acc + t.sections.filter(s => !s.disabled).length, 0);
+  }, [topics]);
+
+  const totalSubmodulesCount = useMemo(() => {
+    return topics.reduce((acc, t) => acc + t.sections.length, 0);
+  }, [topics]);
+
   // Computed platform aggregate metrics for Dashboard
-  const allUserMetrics = users.map(u => getUserReportMetrics(u, topics));
-  const overallAvgPassRate = Math.round(allUserMetrics.reduce((acc, m) => acc + m.avgPassAccuracy, 0) / (allUserMetrics.length || 1));
+  const allUserMetrics = useMemo(() => users.map(u => getUserReportMetrics(u, topics)), [users, topics]);
+
+  // Real-time Module Completion & Pass Rate Breakdown for all current & future modules
+  const realModuleStats = useMemo(() => {
+    return topics.map((t) => {
+      const totalQuestions = t.sections.reduce(
+        (acc, s) => acc + s.commands.reduce((cAcc, c) => cAcc + c.items.length, 0),
+        0
+      );
+      const activeSubmodules = t.sections.filter(s => !s.disabled).length;
+      const totalSubmodules = t.sections.length;
+
+      // Extract user scores for this module
+      const userScores = allUserMetrics.map(u => {
+        const ms = u.moduleScores.find(m => m.topicId === t.id);
+        return {
+          scorePercent: ms ? ms.scorePercent : 0,
+          correctCount: ms ? ms.correctCount : 0,
+          passed: ms ? ms.passed : false,
+          attempted: ms ? ms.correctCount > 0 : false
+        };
+      });
+
+      const passedCount = userScores.filter(s => s.passed).length;
+      const attemptedCount = userScores.filter(s => s.attempted).length;
+      const enrolledCount = users.length;
+
+      const avgScore = enrolledCount > 0
+        ? Math.round(userScores.reduce((acc, s) => acc + s.scorePercent, 0) / enrolledCount)
+        : 0;
+
+      const passRate = enrolledCount > 0
+        ? Math.round((passedCount / enrolledCount) * 100)
+        : 0;
+
+      const attemptedPassRate = attemptedCount > 0
+        ? Math.round((passedCount / attemptedCount) * 100)
+        : 0;
+
+      return {
+        topic: t,
+        totalQuestions,
+        activeSubmodules,
+        totalSubmodules,
+        passedCount,
+        attemptedCount,
+        enrolledCount,
+        avgScore,
+        passRate,
+        attemptedPassRate,
+        isPassing: (attemptedCount > 0 ? attemptedPassRate : avgScore) >= 75 || passRate >= 75,
+        isDisabled: !!t.disabled
+      };
+    });
+  }, [topics, users, allUserMetrics]);
+
+  const overallAvgPassRate = useMemo(() => {
+    const activeStats = realModuleStats.filter(m => !m.isDisabled);
+    if (activeStats.length === 0) return 0;
+    const sum = activeStats.reduce((acc, m) => acc + (m.attemptedCount > 0 ? m.attemptedPassRate : m.avgScore), 0);
+    return Math.round(sum / activeStats.length);
+  }, [realModuleStats]);
+
   const totalLabsSolvedAggregate = allUserMetrics.reduce((acc, m) => acc + m.labsSolvedCount, 0);
   const totalXPAggregate = allUserMetrics.reduce((acc, m) => acc + m.totalXP, 0);
 
@@ -2031,11 +2109,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
               <button
                 onClick={handleAdminLogout}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 hover:border-rose-500/50 hover:shadow-md text-xs font-bold transition-all shrink-0"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-rose-500/40 bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 hover:border-rose-500/60 hover:shadow-lg hover:shadow-rose-500/10 text-xs font-bold transition-all shrink-0 cursor-pointer"
                 title="Sign Out Admin Session"
               >
                 <LogOut className="h-4 w-4 text-rose-400" />
-                <span className="hidden xs:inline">Logout</span>
+                <span>Logout</span>
               </button>
             </div>
 
@@ -2190,9 +2268,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   <span className="text-[11px] font-bold uppercase tracking-wider">Curriculum Catalog</span>
                   <Layers className="h-4 w-4 text-purple-400" />
                 </div>
-                <div className="text-2xl font-black text-white">{topics.length} Modules</div>
+                <div className="text-2xl font-black text-white">
+                  {activeModulesCount} <span className="text-xs font-normal text-slate-400">/ {totalModulesCount} Active Modules</span>
+                </div>
                 <div className="text-[10px] text-slate-400 font-medium">
-                  {topics.reduce((acc, t) => acc + t.sections.length, 0)} Sub-modules active
+                  {activeSubmodulesCount} Active Sub-modules {totalSubmodulesCount > activeSubmodulesCount ? `(${totalSubmodulesCount} Total)` : ''}
                 </div>
               </div>
 
@@ -2222,55 +2302,75 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
             {/* MODULE PERFORMANCE & PASS RATE MATRIX */}
             <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5 space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
                   <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
                     <PieChart className="h-4 w-4 text-indigo-400" /> Module Completion & Pass Rate Breakdown (75% Minimum Benchmark)
                   </h3>
-                  <p className="text-[11px] text-slate-400">Learners must achieve at least 75% accuracy in each module quiz to clear and proceed.</p>
+                  <p className="text-[11px] text-slate-400">Calculated from verified user scores across all current and future curriculum stacks.</p>
                 </div>
-                <span className="text-xs font-mono text-indigo-400 bg-indigo-500/10 px-2.5 py-1 rounded-lg border border-indigo-500/20">
-                  {topics.length} Active Stacks
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
+                    {activeModulesCount} Active / {topics.length} Total Stacks
+                  </span>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {topics.map((t, idx) => {
-                  const passRate = Math.min(98, Math.max(68, 88 - (idx * 5 % 20)));
-                  const isPassing = passRate >= 75;
+                {realModuleStats.map((stat) => {
+                  const displayRate = stat.attemptedCount > 0 ? stat.attemptedPassRate : stat.avgScore;
+                  const isPassing = displayRate >= 75 || stat.passRate >= 75;
 
                   return (
-                    <div key={t.id} className="rounded-xl border border-slate-800 bg-slate-950 p-4 space-y-3 hover:border-slate-700 transition-all">
+                    <div 
+                      key={stat.topic.id} 
+                      className={`rounded-xl border p-4 space-y-3 transition-all ${
+                        stat.isDisabled 
+                          ? 'border-slate-800/60 bg-slate-950/50 opacity-60' 
+                          : 'border-slate-800 bg-slate-950 hover:border-slate-700'
+                      }`}
+                    >
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-bold text-xs text-white truncate">{t.title}</span>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="font-bold text-xs text-white truncate">{stat.topic.title}</span>
+                          {stat.isDisabled && (
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-slate-800 text-slate-400 border border-slate-700 shrink-0">
+                              Disabled
+                            </span>
+                          )}
+                        </div>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${
                           isPassing
                             ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
                             : 'bg-amber-500/10 text-amber-300 border-amber-500/30'
                         }`}>
-                          {passRate}% Pass Rate
+                          {displayRate}% Pass Rate
                         </span>
                       </div>
 
                       <div className="space-y-1">
                         <div className="flex items-center justify-between text-[10px] text-slate-400">
-                          <span>Progress vs 75% Threshold</span>
-                          <span className="font-mono">{t.sections.length} Sub-modules</span>
+                          <span>{stat.passedCount} of {stat.enrolledCount} Learners Cleared</span>
+                          <span className="font-mono">{stat.activeSubmodules} Sub-modules ({stat.totalQuestions} Qs)</span>
                         </div>
                         <div className="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-800">
                           <div
                             className={`h-full transition-all duration-500 ${
-                              passRate >= 85 ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : 'bg-gradient-to-r from-indigo-500 to-amber-500'
+                              displayRate >= 75 
+                                ? 'bg-gradient-to-r from-emerald-500 to-teal-400' 
+                                : displayRate > 0 
+                                  ? 'bg-gradient-to-r from-indigo-500 to-amber-500' 
+                                  : 'bg-slate-800'
                             }`}
-                            style={{ width: `${passRate}%` }}
+                            style={{ width: `${Math.max(displayRate, 3)}%` }}
                           />
                         </div>
                       </div>
 
                       <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-900">
-                        <span>Enrolled Learners: <strong className="text-white">{users.length}</strong></span>
-                        <span className="text-emerald-400 font-bold flex items-center gap-1">
-                          <CheckCircle2 className="h-3 w-3" /> Verified Quiz Data
+                        <span>Attempted: <strong className="text-white">{stat.attemptedCount}</strong> / {stat.enrolledCount}</span>
+                        <span className="text-indigo-400 font-bold flex items-center gap-1">
+                          <CheckCircle2 className="h-3 w-3 text-emerald-400" /> 75% Benchmark Target
                         </span>
                       </div>
                     </div>
