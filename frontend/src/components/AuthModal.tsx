@@ -121,14 +121,63 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute right-5 top-5 p-2 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+          className="absolute right-5 top-5 p-2 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition-colors z-20"
         >
           <X className="h-5 w-5" />
         </button>
 
+        {/* Animated Brand Header & Register Now Badge */}
+        <div className="flex flex-col gap-3 pt-1">
+          {/* Animated Dynamic Badge */}
+          <div className="flex items-center justify-between gap-2">
+            <div 
+              onClick={() => { setMode('register'); setError(''); }}
+              className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-pink-500/20 text-indigo-300 border border-indigo-500/30 text-[11px] font-mono font-bold shadow-lg shadow-indigo-500/10 cursor-pointer hover:border-indigo-400 transition-all group"
+            >
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-pink-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-pink-500"></span>
+              </span>
+              <Sparkles className="h-3.5 w-3.5 text-pink-400 group-hover:rotate-12 transition-transform" />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 via-purple-200 to-pink-300 font-extrabold tracking-wide">
+                REGISTER NOW • FREE ACCESS
+              </span>
+            </div>
+
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" /> Live
+            </span>
+          </div>
+
+          {/* Animated Logo Container */}
+          <div className="flex items-center gap-3 bg-slate-950/60 p-3 rounded-2xl border border-slate-800/90 shadow-inner">
+            <div className="relative group p-1.5 rounded-2xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-500 shadow-lg shadow-indigo-500/25 shrink-0 animate-pulse" style={{ animationDuration: '3s' }}>
+              <div className="bg-slate-950 p-1.5 rounded-xl">
+                <img 
+                  src="/favicon.svg" 
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/fevicon.png'; }}
+                  alt="HuntDevOps Official Logo" 
+                  className="h-8 w-8 object-contain shrink-0 drop-shadow-md" 
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col">
+              <div className="flex items-center gap-1.5">
+                <span className="font-black text-xl tracking-tight text-white leading-none">
+                  hunt<span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400">devops</span>
+                </span>
+              </div>
+              <span className="text-[10px] font-mono text-slate-400 font-semibold tracking-wider uppercase mt-0.5">
+                Production Curriculum & Labs
+              </span>
+            </div>
+          </div>
+        </div>
+
         {/* Mode Switcher Pill */}
-        <div className="flex items-center justify-between pt-2">
-          <div className="flex p-1 rounded-2xl bg-slate-950 border border-slate-800 w-full">
+        <div className="flex items-center justify-between">
+          <div className="flex p-1 rounded-2xl bg-slate-950 border border-slate-800 w-full shadow-inner">
             <button
               onClick={() => { setMode('login'); setError(''); }}
               className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all duration-300 ${

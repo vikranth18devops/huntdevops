@@ -297,17 +297,55 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         {/* ==================================================== */}
         <div className="col-span-1 lg:col-span-6 p-6 sm:p-8 lg:p-12 flex flex-col justify-between relative bg-slate-900/90">
           
-          {/* Mobile Top Brand Header */}
-          <div className="lg:hidden flex items-center justify-between pb-4 mb-4 border-b border-slate-800/80">
-            <div className="flex items-center gap-2.5">
-              <img src="/fevicon.png" alt="HuntDevOps Logo" className="h-8 w-8 object-contain rounded-xl bg-slate-950 p-1 shrink-0 shadow-sm border border-slate-800" />
-              <span className="font-black text-lg text-white">
-                hunt<span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">devops</span>
+          {/* Mobile & Tablet Top Brand Header with Animated Logo & Register Now Banner */}
+          <div className="lg:hidden flex flex-col gap-3.5 pb-4 mb-4 border-b border-slate-800/80">
+            
+            {/* Animated Dynamic Badge: Register Now */}
+            <div className="flex items-center justify-between gap-2">
+              <div 
+                onClick={() => { setMode('register'); setError(''); }}
+                className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-pink-500/20 text-indigo-300 border border-indigo-500/30 text-[11px] font-mono font-bold shadow-lg shadow-indigo-500/10 cursor-pointer hover:border-indigo-400 transition-all group"
+              >
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-pink-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-pink-500"></span>
+                </span>
+                <Sparkles className="h-3.5 w-3.5 text-pink-400 group-hover:rotate-12 transition-transform" />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 via-purple-200 to-pink-300 font-extrabold tracking-wide">
+                  REGISTER NOW • FREE ACCESS
+                </span>
+              </div>
+
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" /> Live
               </span>
             </div>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" /> Live
-            </span>
+
+            {/* Prominent Animated HuntDevOps Logo & Title */}
+            <div className="flex items-center gap-3 bg-slate-950/60 p-3 rounded-2xl border border-slate-800/90 shadow-inner">
+              <div className="relative group p-1.5 rounded-2xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-500 shadow-lg shadow-indigo-500/25 shrink-0 animate-pulse" style={{ animationDuration: '3s' }}>
+                <div className="bg-slate-950 p-1.5 rounded-xl">
+                  <img 
+                    src="/favicon.svg" 
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/fevicon.png'; }}
+                    alt="HuntDevOps Official Logo" 
+                    className="h-9 w-9 object-contain shrink-0 drop-shadow-md" 
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-black text-xl sm:text-2xl tracking-tight text-white leading-none">
+                    hunt<span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400">devops</span>
+                  </span>
+                </div>
+                <span className="text-[10px] font-mono text-slate-400 font-semibold tracking-wider uppercase mt-0.5">
+                  Production Curriculum & Labs
+                </span>
+              </div>
+            </div>
+
           </div>
 
           {/* DRIBBBLE TAB SLIDER SWITCHER */}
