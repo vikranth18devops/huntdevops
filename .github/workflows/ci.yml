@@ -26,7 +26,7 @@ permissions:
 
 jobs:
   # =============================================================
-  # STAGE 1 (PARALLEL): Application Code Builds
+  # STAGE 1 (PARALLEL): Application Code Builds.  
   # =============================================================
   build-frontend:
     name: 1. Build Frontend React
