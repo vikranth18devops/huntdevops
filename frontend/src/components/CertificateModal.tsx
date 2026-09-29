@@ -130,7 +130,8 @@ export const CertificateModal: React.FC<CertificateModalProps> = ({
             <div className="relative z-10 flex items-center justify-between gap-4 pb-4 border-b border-amber-500/20">
               <div className="flex items-center gap-3">
                 <img 
-                  src="/fevicon.png" 
+                  src="/favicon.svg" 
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/fevicon.png'; }}
                   alt="HuntDevOps Logo" 
                   className="h-10 w-10 object-contain rounded-xl bg-slate-950 p-1 border border-amber-500/40 shadow-md" 
                 />

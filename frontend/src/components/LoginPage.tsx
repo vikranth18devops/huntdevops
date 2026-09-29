@@ -233,7 +233,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, topics }) 
           <div className="relative z-10 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-500 shadow-lg shadow-indigo-500/30">
-                <img src="/fevicon.png" alt="HuntDevOps Logo" className="h-8 w-8 object-contain rounded-xl bg-slate-950 p-1 shrink-0" />
+                <img 
+                  src="/favicon.svg" 
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/fevicon.png'; }}
+                  alt="HuntDevOps Logo" 
+                  className="h-8 w-8 object-contain rounded-xl bg-slate-950 p-0.5 shrink-0" 
+                />
               </div>
               <div className="flex flex-col">
                 <span className="font-black text-xl tracking-tight text-white flex items-center gap-1">

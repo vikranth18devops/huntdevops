@@ -2056,7 +2056,12 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               </button>
 
                 <div className="flex items-center gap-2.5 whitespace-nowrap shrink-0">
-                  <img src="/fevicon.png" alt="HuntDevOps Logo" className="h-9 w-9 object-contain rounded-xl shrink-0 shadow-md border border-slate-800" />
+                  <img 
+                    src="/favicon.svg" 
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/fevicon.png'; }}
+                    alt="HuntDevOps Logo" 
+                    className="h-9 w-9 object-contain rounded-xl shrink-0 shadow-md border border-slate-800" 
+                  />
                   <div className="whitespace-nowrap">
                     <h1 className="text-lg font-black text-white tracking-tight flex items-center gap-2 whitespace-nowrap">
                       HuntDevOps <span className="px-2 py-0.5 rounded-full text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 font-bold uppercase whitespace-nowrap">Super Admin Portal</span>
