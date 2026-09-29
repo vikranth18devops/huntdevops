@@ -20,6 +20,8 @@ import {
   Brain
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { CertificateModal, type CertificateData } from './CertificateModal';
+import { issueCertificateApi } from '../services/api';
 
 interface LearningSheetProps {
   topics: Topic[];
@@ -68,6 +70,9 @@ export const LearningSheet: React.FC<LearningSheetProps> = ({
 
   // End of Module Quiz Result Screen state
   const [showModuleResult, setShowModuleResult] = useState<boolean>(false);
+
+  // Verified Certificate Modal state
+  const [selectedCertModal, setSelectedCertModal] = useState<CertificateData | null>(null);
 
   // Reset section, page, and result view when active module changes
   useEffect(() => {
@@ -273,6 +278,15 @@ export const LearningSheet: React.FC<LearningSheetProps> = ({
         origin: { y: 0.6 },
         colors: ['#10b981', '#6366f1', '#f59e0b']
       });
+
+      if (user?.username) {
+        issueCertificateApi({
+          username: user.username,
+          topicId: currentTopic.id,
+          topicTitle: currentTopic.title,
+          scorePercent
+        }).catch(err => console.warn('Certificate issuance sync:', err));
+      }
     }
     window.scrollTo({ top: 350, behavior: 'smooth' });
   };
@@ -448,6 +462,19 @@ export const LearningSheet: React.FC<LearningSheetProps> = ({
             const scorePercent = Math.round((correctCount / (totalQ || 1)) * 100);
             const isPassed = scorePercent >= 75;
 
+            const cleanTopic = (currentTopic.id || 'MOD').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+            const hash = Math.abs(((user?.username || 'Learner') + currentTopic.id).split('').reduce((acc, char) => (acc << 5) - acc + char.charCodeAt(0), 0)).toString(16).toUpperCase().slice(0, 6);
+            const certificateCode = `HD-${cleanTopic}-${hash}`;
+            const currentCertData: CertificateData = {
+              certificateCode,
+              recipientName: user?.displayName || user?.username || 'DevOps Engineer',
+              username: user?.username || 'learner',
+              topicId: currentTopic.id,
+              topicTitle: currentTopic.title,
+              scorePercent: scorePercent,
+              issuedAt: new Date().toISOString()
+            };
+
             return (
               <div className="space-y-6 animate-in fade-in">
                 
@@ -476,27 +503,40 @@ export const LearningSheet: React.FC<LearningSheetProps> = ({
                     </p>
                   </div>
 
-                  <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2 flex-wrap">
                     {isPassed ? (
-                      nextTopic ? (
+                      <>
                         <button
-                          onClick={() => {
-                            setActiveTopicId(nextTopic.id);
-                            setShowModuleResult(false);
-                          }}
-                          className="px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs shadow-lg shadow-indigo-600/30 flex items-center gap-2 transition-all"
+                          onClick={() => setSelectedCertModal(currentCertData)}
+                          className="px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/30 flex items-center gap-2 transition-all hover:scale-105 cursor-pointer"
+                          title="View, Print or Download Official Certificate"
                         >
-                          <span>Proceed to Next Module ({nextTopic.title})</span>
-                          <ArrowRight className="h-4 w-4" />
+                          <Award className="h-4 w-4 text-slate-950" />
+                          <span>View / Download Certificate</span>
                         </button>
-                      ) : (
+
                         <button
                           onClick={() => setShowModuleResult(false)}
-                          className="px-6 py-3 rounded-2xl bg-emerald-600 text-white font-black text-xs shadow-lg flex items-center gap-2"
+                          className="px-6 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-black text-xs shadow-lg flex items-center gap-2 transition-all hover:scale-105 cursor-pointer"
+                          title="Review questions and explanations"
                         >
-                          <span>Curriculum Mastered! Review Questions</span>
+                          <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                          <span>{nextTopic ? 'Review Questions' : 'Curriculum Mastered! Review Questions'}</span>
                         </button>
-                      )
+
+                        {nextTopic && (
+                          <button
+                            onClick={() => {
+                              setActiveTopicId(nextTopic.id);
+                              setShowModuleResult(false);
+                            }}
+                            className="px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs shadow-lg shadow-indigo-600/30 flex items-center gap-2 transition-all hover:scale-105 cursor-pointer"
+                          >
+                            <span>Proceed to Next Module ({nextTopic.title})</span>
+                            <ArrowRight className="h-4 w-4" />
+                          </button>
+                        )}
+                      </>
                     ) : (
                       <button
                         onClick={() => {
@@ -506,7 +546,7 @@ export const LearningSheet: React.FC<LearningSheetProps> = ({
                           setCurrentSectionIndex(0);
                           window.scrollTo({ top: 400, behavior: 'smooth' });
                         }}
-                        className="px-6 py-3 rounded-2xl bg-amber-600 hover:bg-amber-500 text-white font-black text-xs shadow-lg flex items-center gap-2 transition-all"
+                        className="px-6 py-3 rounded-2xl bg-amber-600 hover:bg-amber-500 text-white font-black text-xs shadow-lg flex items-center gap-2 transition-all cursor-pointer"
                       >
                         <RefreshCw className="h-4 w-4" />
                         <span>Retake Module Exam (Clear & Retry)</span>
@@ -843,28 +883,52 @@ export const LearningSheet: React.FC<LearningSheetProps> = ({
                               </div>
                             </div>
 
-                            {nextTopic ? (
+                            <div className="flex items-center gap-2 flex-wrap">
                               <button
                                 onClick={() => {
-                                  setActiveTopicId(nextTopic.id);
-                                  setCurrentSectionIndex(0);
-                                  setQuestionPageIndex(0);
-                                  window.scrollTo({ top: 350, behavior: 'smooth' });
+                                  const cleanTopic = (currentTopic.id || 'MOD').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+                                  const hash = Math.abs(((user?.username || 'Learner') + currentTopic.id).split('').reduce((acc, char) => (acc << 5) - acc + char.charCodeAt(0), 0)).toString(16).toUpperCase().slice(0, 6);
+                                  const certificateCode = `HD-${cleanTopic}-${hash}`;
+                                  setSelectedCertModal({
+                                    certificateCode,
+                                    recipientName: user?.displayName || user?.username || 'DevOps Engineer',
+                                    username: user?.username || 'learner',
+                                    topicId: currentTopic.id,
+                                    topicTitle: currentTopic.title,
+                                    scorePercent: 100,
+                                    issuedAt: new Date().toISOString()
+                                  });
                                 }}
-                                className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs shadow-md shadow-indigo-600/20 flex items-center gap-2 shrink-0 transition-all hover:scale-[1.02]"
+                                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs shadow-md shadow-amber-500/20 flex items-center gap-1.5 shrink-0 transition-all cursor-pointer"
+                                title="View, Print or Download Official Certificate"
                               >
-                                <Brain className="h-4 w-4 text-amber-300" />
-                                <span>Go to Next Module ({nextTopic.title}) &rarr;</span>
+                                <Award className="h-4 w-4 text-slate-950" />
+                                <span>View / Download Certificate</span>
                               </button>
-                            ) : (
-                              <button
-                                onClick={() => setShowModuleResult(true)}
-                                className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs shadow-md flex items-center gap-2 shrink-0 transition-all"
-                              >
-                                <Award className="h-4 w-4" />
-                                <span>Review Full Curriculum Results</span>
-                              </button>
-                            )}
+
+                              {nextTopic ? (
+                                <button
+                                  onClick={() => {
+                                    setActiveTopicId(nextTopic.id);
+                                    setCurrentSectionIndex(0);
+                                    setQuestionPageIndex(0);
+                                    window.scrollTo({ top: 350, behavior: 'smooth' });
+                                  }}
+                                  className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs shadow-md shadow-indigo-600/20 flex items-center gap-2 shrink-0 transition-all hover:scale-[1.02] cursor-pointer"
+                                >
+                                  <Brain className="h-4 w-4 text-amber-300" />
+                                  <span>Go to Next Module ({nextTopic.title}) &rarr;</span>
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => setShowModuleResult(true)}
+                                  className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs shadow-md flex items-center gap-2 shrink-0 transition-all cursor-pointer"
+                                >
+                                  <Award className="h-4 w-4" />
+                                  <span>Curriculum Mastered! Review Questions</span>
+                                </button>
+                              )}
+                            </div>
                           </div>
                         )}
 
@@ -879,7 +943,7 @@ export const LearningSheet: React.FC<LearningSheetProps> = ({
                   <button
                     onClick={handlePrevQuestionPage}
                     disabled={questionPageIndex === 0 && currentSectionIndex === 0}
-                    className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                    className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
                   >
                     <ArrowLeft className="h-3.5 w-3.5" />
                     <span>Previous Page</span>
@@ -894,7 +958,7 @@ export const LearningSheet: React.FC<LearningSheetProps> = ({
                           setQuestionPageIndex(idx);
                           window.scrollTo({ top: 450, behavior: 'smooth' });
                         }}
-                        className={`h-7 w-7 rounded-lg font-bold font-mono text-xs transition-all ${
+                        className={`h-7 w-7 rounded-lg font-bold font-mono text-xs transition-all cursor-pointer ${
                           idx === questionPageIndex
                             ? 'bg-indigo-600 text-white shadow-sm'
                             : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
@@ -908,7 +972,7 @@ export const LearningSheet: React.FC<LearningSheetProps> = ({
                   {questionPageIndex < totalQuestionPages - 1 || currentSectionIndex < sections.length - 1 ? (
                     <button
                       onClick={handleNextQuestionPage}
-                      className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-600 text-white font-bold text-xs shadow-md shadow-indigo-500/20 hover:opacity-95 transition-all"
+                      className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-600 text-white font-bold text-xs shadow-md shadow-indigo-500/20 hover:opacity-95 transition-all cursor-pointer"
                     >
                       <span>Next Page &rarr;</span>
                       <ArrowRight className="h-3.5 w-3.5" />
@@ -916,7 +980,7 @@ export const LearningSheet: React.FC<LearningSheetProps> = ({
                   ) : (
                     <button
                       onClick={handleSubmitModuleQuiz}
-                      className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-black text-xs shadow-md shadow-emerald-500/20 hover:opacity-95 transition-all"
+                      className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-black text-xs shadow-md shadow-emerald-500/20 hover:opacity-95 transition-all cursor-pointer"
                     >
                       <Award className="h-4 w-4" />
                       <span>Submit Module Quiz & View Results 🎉</span>
@@ -930,6 +994,13 @@ export const LearningSheet: React.FC<LearningSheetProps> = ({
 
           </div>
         )}
+
+        {/* OFFICIAL VERIFIED CERTIFICATE MODAL */}
+        <CertificateModal
+          isOpen={!!selectedCertModal}
+          onClose={() => setSelectedCertModal(null)}
+          certificate={selectedCertModal}
+        />
 
       </div>
     </div>
