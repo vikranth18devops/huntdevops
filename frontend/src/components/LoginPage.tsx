@@ -197,12 +197,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(#334155_1px,transparent_1px)] [background-size:28px_28px] opacity-20" />
 
       {/* MAIN CONTAINER: DRIBBBLE STYLE SPLIT-SCREEN CARD */}
-      <div className="relative z-10 w-full max-w-6xl rounded-[32px] border border-slate-800/80 bg-slate-900/90 backdrop-blur-2xl shadow-2xl overflow-hidden grid grid-cols-1 lg:grid-cols-12 min-h-[640px]">
+      <div className="relative z-10 w-full max-w-md lg:max-w-6xl rounded-[32px] border border-slate-800/80 bg-slate-900/90 backdrop-blur-2xl shadow-2xl overflow-hidden grid grid-cols-1 lg:grid-cols-12 min-h-[540px] lg:min-h-[640px]">
         
         {/* ==================================================== */}
-        {/* LEFT PANEL: DRIBBBLE DYNAMIC ANIMATED ILLUSTRATION CARD */}
+        {/* LEFT PANEL: DRIBBBLE DYNAMIC ANIMATED ILLUSTRATION CARD (DESKTOP ONLY) */}
         {/* ==================================================== */}
-        <div className="lg:col-span-6 bg-gradient-to-br from-slate-900 via-indigo-950/40 to-slate-950 p-8 lg:p-12 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-slate-800/80 relative overflow-hidden group">
+        <div className="hidden lg:flex lg:col-span-6 bg-gradient-to-br from-slate-900 via-indigo-950/40 to-slate-950 p-8 lg:p-12 flex-col justify-between border-b lg:border-b-0 lg:border-r border-slate-800/80 relative overflow-hidden group">
           
           {/* Subtle Graphic Grid Accent */}
           <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] opacity-30" />
@@ -295,8 +295,21 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         {/* ==================================================== */}
         {/* RIGHT PANEL: DRIBBBLE SLEEK ANIMATED AUTH FORM CARD  */}
         {/* ==================================================== */}
-        <div className="lg:col-span-6 p-8 lg:p-12 flex flex-col justify-between relative bg-slate-900/90">
+        <div className="col-span-1 lg:col-span-6 p-6 sm:p-8 lg:p-12 flex flex-col justify-between relative bg-slate-900/90">
           
+          {/* Mobile Top Brand Header */}
+          <div className="lg:hidden flex items-center justify-between pb-4 mb-4 border-b border-slate-800/80">
+            <div className="flex items-center gap-2.5">
+              <img src="/fevicon.png" alt="HuntDevOps Logo" className="h-8 w-8 object-contain rounded-xl bg-slate-950 p-1 shrink-0 shadow-sm border border-slate-800" />
+              <span className="font-black text-lg text-white">
+                hunt<span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">devops</span>
+              </span>
+            </div>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" /> Live
+            </span>
+          </div>
+
           {/* DRIBBBLE TAB SLIDER SWITCHER */}
           <div className="space-y-6">
             
