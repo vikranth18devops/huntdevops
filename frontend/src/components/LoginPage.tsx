@@ -232,19 +232,24 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, topics }) 
           {/* Top Brand Logo */}
           <div className="relative z-10 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-500 shadow-lg shadow-indigo-500/30">
+              <div className="p-1.5 rounded-2xl bg-gradient-to-tr from-cyan-500 via-indigo-600 to-purple-600 shadow-lg shadow-indigo-500/30 border border-indigo-400/30">
                 <img 
                   src="/favicon.svg" 
                   onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/fevicon.png'; }}
-                  alt="HuntDevOps Logo" 
+                  alt="HuntDevOps.online Logo" 
                   className="h-8 w-8 object-contain rounded-xl bg-slate-950 p-0.5 shrink-0" 
                 />
               </div>
               <div className="flex flex-col">
-                <span className="font-black text-xl tracking-tight text-white flex items-center gap-1">
-                  hunt<span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">devops</span>
-                </span>
-                <span className="text-[10px] font-mono text-slate-400 tracking-wider">MODERN DEVOPS PATH</span>
+                <div className="flex items-baseline gap-1">
+                  <span className="font-black text-xl tracking-tight text-white flex items-center">
+                    hunt<span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">devops</span>
+                  </span>
+                  <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black tracking-wide uppercase bg-gradient-to-r from-cyan-500 to-indigo-600 text-white shadow-xs">
+                    .online
+                  </span>
+                </div>
+                <span className="text-[10px] font-mono text-slate-400 tracking-wider">MODERN SRE & CLOUD CAREER ACCELERATOR</span>
               </div>
             </div>
 
@@ -348,26 +353,29 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, topics }) 
               </span>
             </div>
 
-            {/* Prominent Animated HuntDevOps Logo & Title */}
+            {/* Prominent Animated HuntDevOps.online Logo & Title */}
             <div className="flex items-center gap-3 bg-slate-950/60 p-3 rounded-2xl border border-slate-800/90 shadow-inner">
-              <div className="relative group p-1.5 rounded-2xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-500 shadow-lg shadow-indigo-500/25 shrink-0 animate-pulse" style={{ animationDuration: '3s' }}>
+              <div className="relative group p-1.5 rounded-2xl bg-gradient-to-tr from-cyan-500 via-indigo-600 to-purple-600 shadow-lg shadow-indigo-500/30 border border-indigo-400/30 shrink-0">
                 <div className="bg-slate-950 p-1.5 rounded-xl">
                   <img 
                     src="/favicon.svg" 
                     onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/fevicon.png'; }}
-                    alt="HuntDevOps Official Logo" 
-                    className="h-9 w-9 object-contain shrink-0 drop-shadow-md" 
+                    alt="HuntDevOps.online Official Logo" 
+                    className="h-9 w-9 object-contain shrink-0" 
                   />
                 </div>
               </div>
 
               <div className="flex flex-col">
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-baseline gap-1">
                   <span className="font-black text-xl sm:text-2xl tracking-tight text-white leading-none">
                     hunt<span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400">devops</span>
                   </span>
+                  <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black tracking-wide uppercase bg-gradient-to-r from-cyan-500 to-indigo-600 text-white shadow-xs">
+                    .online
+                  </span>
                 </div>
-                <span className="text-[10px] font-mono text-slate-400 font-semibold tracking-wider uppercase mt-0.5">
+                <span className="text-[10px] font-mono text-slate-400 font-semibold tracking-wider uppercase mt-1">
                   {enabledCount} Production Modules & Labs
                 </span>
               </div>

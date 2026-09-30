@@ -608,7 +608,7 @@ export function App() {
       {/* Footer */}
       <footer className="border-t border-slate-200 py-8 bg-white">
         <div className="mx-auto max-w-7xl px-4 text-center text-xs text-slate-500 space-y-2">
-          <p>© 2026 HuntDevOps — Practical DevOps learning sheet with hands-on troubleshooting challenges.</p>
+          <p>© 2026 HuntDevOps.online — Practical DevOps learning sheet with hands-on troubleshooting challenges.</p>
           <div className="flex items-center justify-center gap-4 pt-1 flex-wrap">
             {platformSettings.isLearningPathEnabled && (
               <button onClick={() => setActiveTab('sheet')} className="hover:underline">Learning Path</button>

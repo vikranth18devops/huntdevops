@@ -151,25 +151,28 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
 
           {/* Animated Logo Container */}
           <div className="flex items-center gap-3 bg-slate-950/60 p-3 rounded-2xl border border-slate-800/90 shadow-inner">
-            <div className="relative group p-1.5 rounded-2xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-500 shadow-lg shadow-indigo-500/25 shrink-0 animate-pulse" style={{ animationDuration: '3s' }}>
+            <div className="relative group p-1.5 rounded-2xl bg-gradient-to-tr from-cyan-500 via-indigo-600 to-purple-600 shadow-lg shadow-indigo-500/30 border border-indigo-400/30 shrink-0">
               <div className="bg-slate-950 p-1.5 rounded-xl">
                 <img 
                   src="/favicon.svg" 
                   onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/fevicon.png'; }}
-                  alt="HuntDevOps Official Logo" 
-                  className="h-8 w-8 object-contain shrink-0 drop-shadow-md" 
+                  alt="HuntDevOps.online Logo" 
+                  className="h-8 w-8 object-contain shrink-0" 
                 />
               </div>
             </div>
 
             <div className="flex flex-col">
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-baseline gap-1">
                 <span className="font-black text-xl tracking-tight text-white leading-none">
                   hunt<span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400">devops</span>
                 </span>
+                <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black tracking-wide uppercase bg-gradient-to-r from-cyan-500 to-indigo-600 text-white shadow-xs">
+                  .online
+                </span>
               </div>
-              <span className="text-[10px] font-mono text-slate-400 font-semibold tracking-wider uppercase mt-0.5">
-                Production Curriculum & Labs
+              <span className="text-[10px] font-mono text-slate-400 font-semibold tracking-wider uppercase mt-1">
+                Production Curriculum & Incident Labs
               </span>
             </div>
           </div>

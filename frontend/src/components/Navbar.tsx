@@ -65,19 +65,24 @@ export const Navbar: React.FC<NavbarProps> = ({
             <a
               href="#"
               onClick={(e) => { e.preventDefault(); if (isLearningPathEnabled) setActiveTab('sheet'); else if (isTroubleshootingLabsEnabled) setActiveTab('practice'); }}
-              className="flex items-center gap-2 font-bold text-xl sm:text-2xl tracking-tight text-slate-900 transition-opacity hover:opacity-90 shrink-0"
+              className="flex items-center gap-2.5 font-bold text-xl sm:text-2xl tracking-tight text-slate-900 transition-all hover:scale-[1.01] shrink-0"
             >
-              <div className="relative p-1 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 shadow-sm shrink-0">
+              <div className="relative p-1 rounded-xl bg-gradient-to-tr from-cyan-500 via-indigo-600 to-purple-600 shadow-md shadow-indigo-500/25 shrink-0 border border-indigo-400/30">
                 <img 
                   src="/favicon.svg" 
                   onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/fevicon.png'; }}
-                  alt="HuntDevOps Logo" 
-                  className="h-7 w-7 sm:h-8 sm:w-8 object-contain rounded-lg bg-slate-950 p-0.5 shrink-0 shadow-inner" 
+                  alt="HuntDevOps.online Logo" 
+                  className="h-8 w-8 sm:h-9 sm:w-9 object-contain rounded-lg bg-slate-950 p-0.5 shrink-0" 
                 />
               </div>
-              <span className="font-black tracking-tight text-slate-900">
-                hunt<span className="text-indigo-600">devops</span>
-              </span>
+              <div className="flex items-baseline gap-1">
+                <span className="font-black tracking-tight text-slate-900">
+                  hunt<span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">devops</span>
+                </span>
+                <span className="px-1.5 py-0.5 rounded-md text-[10px] font-black tracking-wide uppercase bg-gradient-to-r from-cyan-500 to-indigo-600 text-white shadow-xs">
+                  .online
+                </span>
+              </div>
             </a>
 
             {/* Navigation Tabs */}

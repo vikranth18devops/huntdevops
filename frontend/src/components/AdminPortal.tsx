@@ -912,7 +912,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       setAuthError('');
       showToast('Welcome back, Super Admin!');
     } else {
-      setAuthError('Invalid admin credentials. Use admin / admin123');
+      setAuthError('Invalid admin username or password. Access restricted.');
     }
   };
 
@@ -2020,7 +2020,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 className="w-full rounded-xl border border-slate-700 bg-slate-950 py-2.5 px-4 text-xs font-medium text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 required
               />
-              <p className="text-[10px] text-slate-500 mt-1">Default credentials: <code className="text-indigo-400 font-mono">admin</code> / <code className="text-indigo-400 font-mono">admin123</code></p>
             </div>
 
             <button
@@ -2056,15 +2055,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               </button>
 
                 <div className="flex items-center gap-2.5 whitespace-nowrap shrink-0">
-                  <img 
-                    src="/favicon.svg" 
-                    onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/fevicon.png'; }}
-                    alt="HuntDevOps Logo" 
-                    className="h-9 w-9 object-contain rounded-xl shrink-0 shadow-md border border-slate-800" 
-                  />
+                  <div className="p-1 rounded-xl bg-gradient-to-tr from-cyan-500 via-indigo-600 to-purple-600 shadow-md shadow-indigo-500/20 shrink-0">
+                    <img 
+                      src="/favicon.svg" 
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/fevicon.png'; }}
+                      alt="HuntDevOps.online Logo" 
+                      className="h-8 w-8 object-contain rounded-lg bg-slate-950 p-0.5 shrink-0" 
+                    />
+                  </div>
                   <div className="whitespace-nowrap">
                     <h1 className="text-lg font-black text-white tracking-tight flex items-center gap-2 whitespace-nowrap">
-                      HuntDevOps <span className="px-2 py-0.5 rounded-full text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 font-bold uppercase whitespace-nowrap">Super Admin Portal</span>
+                      hunt<span className="text-indigo-400">devops</span><span className="text-cyan-400">.online</span> <span className="px-2 py-0.5 rounded-full text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 font-bold uppercase whitespace-nowrap">Super Admin</span>
                     </h1>
                   </div>
                 </div>

@@ -129,18 +129,25 @@ export const CertificateModal: React.FC<CertificateModalProps> = ({
             {/* Certificate Header Brand */}
             <div className="relative z-10 flex items-center justify-between gap-4 pb-4 border-b border-amber-500/20">
               <div className="flex items-center gap-3">
-                <img 
-                  src="/favicon.svg" 
-                  onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/fevicon.png'; }}
-                  alt="HuntDevOps Logo" 
-                  className="h-10 w-10 object-contain rounded-xl bg-slate-950 p-1 border border-amber-500/40 shadow-md" 
-                />
+                <div className="p-1 rounded-xl bg-gradient-to-tr from-amber-500 via-indigo-600 to-cyan-500 shadow-md border border-amber-500/40">
+                  <img 
+                    src="/favicon.svg" 
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/fevicon.png'; }}
+                    alt="HuntDevOps.online Logo" 
+                    className="h-10 w-10 object-contain rounded-lg bg-slate-950 p-1" 
+                  />
+                </div>
                 <div className="text-left">
-                  <div className="font-black text-xl tracking-tight text-white">
-                    hunt<span className="text-indigo-400">devops</span>
+                  <div className="flex items-baseline gap-1">
+                    <span className="font-black text-xl tracking-tight text-white">
+                      hunt<span className="text-indigo-400">devops</span>
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black tracking-wide uppercase bg-gradient-to-r from-amber-500 to-indigo-600 text-white shadow-xs">
+                      .online
+                    </span>
                   </div>
                   <div className="text-[10px] font-mono text-amber-400 tracking-widest uppercase font-bold">
-                    DevOps Engineering Academy
+                    Cloud & SRE Engineering Academy
                   </div>
                 </div>
               </div>
