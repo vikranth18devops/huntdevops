@@ -8,7 +8,7 @@ spec:
   issuerRef:
     name: letsencrypt-prod
     kind: ClusterIssuer
-  commonName: vikranthsunkarpally.in
+  commonName: huntdevops.online
   dnsNames:
-    - vikranthsunkarpally.in
-    - www.vikranthsunkarpally.in
+    - huntdevops.online
+    - www.huntdevops.online

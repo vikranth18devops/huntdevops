@@ -98,12 +98,12 @@ spec:
 ## 🌐 Step 3: Access Argo CD Web UI & Retrieve Admin Credentials
 
 Argo CD is accessible via two routes:
-1. **Custom Domain (Unified Edge via Traefik)**: **[https://vikranthsunkarpally.in/argocd/](https://vikranthsunkarpally.in/argocd/)** (or `https://vikranthsunkarpally.in/argocd`)
+1. **Custom Domain (Unified Edge via Traefik)**: **[https://huntdevops.online/argocd/](https://huntdevops.online/argocd/)** (or `https://huntdevops.online/argocd`)
 2. **Direct GCP L4 LoadBalancer**: **[https://136.112.167.2](https://136.112.167.2)**
 
 | Attribute | Value |
 | :--- | :--- |
-| **Domain URL** | **`https://vikranthsunkarpally.in/argocd/`** |
+| **Domain URL** | **`https://huntdevops.online/argocd/`** |
 | **Direct LoadBalancer** | **`https://136.112.167.2`** |
 | **Default Username** | `admin` |
 | **Admin Password** | **`vmvSfJ72EtCyt1oX`** |
@@ -127,7 +127,7 @@ When serving Argo CD under a subpath behind Traefik or any reverse proxy, the AP
 2. **Configure `argocd-cm`**:
    ```yaml
    data:
-     url: "https://vikranthsunkarpally.in/argocd"
+     url: "https://huntdevops.online/argocd"
    ```
 
 3. **Pass Flags to `deployment/argocd-server`**:

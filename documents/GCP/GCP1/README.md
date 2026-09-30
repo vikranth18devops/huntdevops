@@ -10,10 +10,10 @@ A complete, **beginner-friendly**, hands-on guide that takes you from an empty G
 ## 🌐 Where You'll End Up
 
 ```text
-        🌐  https://vikranthsunkarpally.in/           <- Live Frontend Web Application (HTTPS)
-        🌐  https://vikranthsunkarpally.in/admin      <- Live Admin Management Portal (admin / admin123)
-        🌐  https://vikranthsunkarpally.in/api/health <- Live Express Backend REST API (HTTPS)
-        🌐  https://vikranthsunkarpally.in/argocd/    <- Live Argo CD GitOps Dashboard (admin / vmvSfJ72EtCyt1oX)
+        🌐  https://huntdevops.online/           <- Live Frontend Web Application (HTTPS)
+        🌐  https://huntdevops.online/admin      <- Live Admin Management Portal (admin / admin123)
+        🌐  https://huntdevops.online/api/health <- Live Express Backend REST API (HTTPS)
+        🌐  https://huntdevops.online/argocd/    <- Live Argo CD GitOps Dashboard (admin / vmvSfJ72EtCyt1oX)
         (Also reachable directly via IP: http://136.112.185.77/ or Argo CD direct LB: https://136.112.167.2)
                                │
                                ▼
@@ -61,7 +61,7 @@ Follow them **in order**. Each phase is self-contained but builds on the previou
 | **2** | [Traefik Ingress](02-traefik-ingress.md) | Install Traefik & expose via GCP TCP LoadBalancer | ~5 min | Traefik Ingress Controller, single static IP `136.112.185.77`, IngressRoute CRDs |
 | **3** | [GitHub Actions CI](03-github-actions-cicd.md) | Build images, Trivy scan (0 CVEs), WIF push to GAR & bump values.yaml | ~15 min | Keyless CI pipeline, hardened Docker containers, automated tag updates with `[skip ci]` |
 | **4** | [Argo CD Deploy](04-argocd-deploy.md) | Declarative GitOps deployment on GKE with auto-sync | ~15 min | Argo CD controller, AppProject, Application, `huntdevops` namespace, multi-tier rollout |
-| **5** | [DNS & GoDaddy](05-dns-and-godaddy.md) | Map custom domain (`vikranthsunkarpally.in`) | ~15 min | GoDaddy DNS A records pointing to `136.112.185.77`, propagation verification |
+| **5** | [DNS & Namecheap / GoDaddy](05-dns-and-godaddy.md) | Map custom domain (`huntdevops.online`) | ~15 min | Namecheap / GoDaddy DNS A records pointing to `136.112.185.77`, propagation verification |
 | **6** | [Monitoring & Logging](06-monitoring-and-logging.md) | Centralized metrics, Cloud Logging, Prometheus & Grafana | ~20 min | Google Cloud Logging, Cloud Monitoring, Prometheus, Grafana dashboards |
 | **7** | [HTTPS & Let's Encrypt](07-https-letsencrypt-and-routes.md) | Free SSL/TLS certificates via cert-manager | ~15 min | cert-manager operator, ClusterIssuer, automated 90-day TLS certificates |
 | **8** | [PostgreSQL Database Guide](08-postgresql-database-guide.md) | Query tables, run ad-hoc SQL, backups & restore | Post-deploy | StatefulSet persistence, table schemas, `psql` queries, backup procedures |

@@ -242,7 +242,7 @@ cd infra/terraform/gcp && terraform state list
 ---
 
 ### Issue 18: Argo CD Subpath Blank Screen or 404 on Assets behind Traefik (`/argocd`)
-* **Problem**: Accessing `https://vikranthsunkarpally.in/argocd/` returns a blank white screen, or browser network tab shows `404 Not Found` for `main.*.js` and `fonts.css`.
+* **Problem**: Accessing `https://huntdevops.online/argocd/` returns a blank white screen, or browser network tab shows `404 Not Found` for `main.*.js` and `fonts.css`.
 * **Possible Cause**: Argo CD server's `--basehref` and `--rootpath` are either unset or mismatched (e.g. one has trailing slash `/argocd/` while the other is `/argocd`), causing Argo CD to log `--basehref and --rootpath had conflict` and fall back to `<base href="/">`. Traefik routes `/main.*.js` to the frontend Nginx instead of Argo CD.
 * **How to Fix**:
   1. Synchronize `argocd-cmd-params-cm`:
@@ -251,7 +251,7 @@ cd infra/terraform/gcp && terraform state list
      server.rootpath: "/argocd"
      server.insecure: "true"
      ```
-  2. Ensure `argocd-cm` contains `url: "https://vikranthsunkarpally.in/argocd"`.
+  2. Ensure `argocd-cm` contains `url: "https://huntdevops.online/argocd"`.
   3. Patch container command and args in `deployment/argocd-server`:
      ```bash
      kubectl patch deployment argocd-server -n argocd --type='json' -p='[
@@ -261,7 +261,7 @@ cd infra/terraform/gcp && terraform state list
      ```
   4. Verify HTML output has injected base href:
      ```bash
-     curl -kLs -H "Accept: text/html" https://vikranthsunkarpally.in/argocd/ | grep -i "base href"
+     curl -kLs -H "Accept: text/html" https://huntdevops.online/argocd/ | grep -i "base href"
      # Output: <base href="/argocd/">
      ```
 

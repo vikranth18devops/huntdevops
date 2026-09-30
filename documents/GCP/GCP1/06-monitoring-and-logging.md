@@ -122,7 +122,7 @@ kubectl top pods -n huntdevops
 
 # 3. Check health endpoint responsiveness via domain or Traefik IP
 curl -s -w "\nHTTP Status: %{http_code}\nTime Total: %{time_total}s\n" \
-  http://vikranthsunkarpally.in/api/health
+  http://huntdevops.online/api/health
 # Or directly via Traefik IP:
 # curl -s http://136.112.185.77/api/health
 ```

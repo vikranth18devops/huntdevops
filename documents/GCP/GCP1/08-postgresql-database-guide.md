@@ -258,7 +258,7 @@ gcloud sql instances list
 gcloud sql instances describe prod-huntdevops-psql-2eecc976 --format="table(name,state,databaseVersion,settings.tier)"
 
 # 3. Test live Backend API connection to Cloud SQL
-curl -s https://vikranthsunkarpally.in/api/health
+curl -s https://huntdevops.online/api/health
 ```
 
 *Expected JSON Output*:
