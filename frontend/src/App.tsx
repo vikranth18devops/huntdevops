@@ -29,6 +29,7 @@ import {
   sendUserHeartbeatApi,
   type PlatformSettings
 } from './services/api';
+import { trackEvent, trackClick, trackChecklistClick, trackLabClick } from './utils/analyticsTracker';
 import { Sparkles, Award, Flame, X, ShieldAlert, BookOpen } from 'lucide-react';
 
 // Helper to safely write to localStorage without crashing on QuotaExceededError
@@ -103,6 +104,7 @@ export function App() {
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [currentPath]);
+
 
   const navigateTo = (path: string) => {
     window.history.pushState({}, '', path);
@@ -260,6 +262,51 @@ export function App() {
     }
   });
 
+  // Real-time Live Visitor & Page View Analytics Tracker
+  useEffect(() => {
+    // 1. Track initial visit & page views
+    trackEvent({
+      eventType: 'PAGE_VIEW',
+      targetName: currentPath === '/admin' ? 'Admin Portal View' : 'Learner Platform View',
+      targetPath: currentPath,
+      username: user?.username || null
+    });
+
+    // 2. Send live active heartbeat every 30 seconds to maintain real-time online status in Admin Panel
+    const liveHeartbeatInterval = setInterval(() => {
+      trackEvent({
+        eventType: 'HEARTBEAT',
+        targetName: 'Live Session Heartbeat',
+        targetPath: currentPath,
+        username: user?.username || null
+      });
+    }, 30 * 1000);
+
+    // 3. Track interactive clicks across the platform
+    const handleGlobalClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+
+      const clickable = target.closest('button, a, input[type="checkbox"], [role="button"]') as HTMLElement | null;
+      if (clickable) {
+        const label = clickable.getAttribute('aria-label') ||
+                      clickable.getAttribute('title') ||
+                      clickable.innerText?.trim().slice(0, 60) ||
+                      clickable.tagName;
+        if (label && label.length > 0) {
+          trackClick(label, { path: currentPath }, user?.username || null);
+        }
+      }
+    };
+
+    document.addEventListener('click', handleGlobalClick, { passive: true });
+
+    return () => {
+      clearInterval(liveHeartbeatInterval);
+      document.removeEventListener('click', handleGlobalClick);
+    };
+  }, [currentPath, user?.username]);
+
   // Completed checklist item IDs (User-Scoped)
   const [completedIds, setCompletedIds] = useState<Set<string>>(() => {
     try {
@@ -390,11 +437,13 @@ export function App() {
             `Completed checklist item ID: ${itemId}`
           );
         }
+        trackChecklistClick(itemId, itemId, true, user?.username || null);
       } else {
         next.delete(itemId);
         if (user?.username) {
           recordQuestionUncompletionApi(user.username, itemId);
         }
+        trackChecklistClick(itemId, itemId, false, user?.username || null);
       }
       const arr = Array.from(next);
       if (user?.username) {
@@ -421,6 +470,7 @@ export function App() {
           `Solved incident lab challenge ID: ${challengeId}`
         );
       }
+      trackLabClick(challengeId, challengeId, 'SOLVE', user?.username || null);
       localStorage.setItem('huntdevops_solved', JSON.stringify(arr));
       return next;
     });

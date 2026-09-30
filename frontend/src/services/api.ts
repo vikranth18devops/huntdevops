@@ -420,4 +420,104 @@ export async function issueCertificateApi(params: {
   return null;
 }
 
+// ----------------------------------------------------------------------
+// Real-time Live Visitors & Click Analytics (Cloud SQL PostgreSQL)
+// ----------------------------------------------------------------------
+export interface LiveVisitorRecord {
+  sessionId: string;
+  visitorId: string;
+  username?: string | null;
+  displayName: string;
+  role: string;
+  deviceOS: string;
+  currentPath: string;
+  ipAddress: string;
+  totalPageViews: number;
+  totalClicks: number;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  durationMinutes: number;
+  secondsSinceLastActive: number;
+}
+
+export interface ClickStreamItem {
+  id: string;
+  sessionId: string;
+  username?: string | null;
+  displayName: string;
+  eventType: string;
+  targetName: string;
+  targetPath?: string;
+  details?: any;
+  deviceOS: string;
+  ipAddress: string;
+  timeAgo: string;
+  timestamp: string;
+}
+
+export interface LiveAnalyticsData {
+  activeVisitorsCount: number;
+  activeVisitors: LiveVisitorRecord[];
+  totalVisitsToday: number;
+  totalVisitsAllTime: number;
+  totalUniqueVisitors: number;
+  totalClicksToday: number;
+  totalClicksAllTime: number;
+  topClickedActions: Array<{
+    targetName: string;
+    eventType: string;
+    clickCount: number | string;
+  }>;
+  recentClickStream: ClickStreamItem[];
+  deviceBreakdown: Array<{
+    deviceOS: string;
+    count: number | string;
+  }>;
+  pathBreakdown: Array<{
+    path: string;
+    visitCount: number | string;
+  }>;
+  serverTime: string;
+}
+
+export async function trackAnalyticsEventApi(params: {
+  sessionId: string;
+  visitorId: string;
+  username?: string | null;
+  eventType: string;
+  targetName: string;
+  targetPath?: string;
+  details?: any;
+  deviceOS?: string;
+  referrer?: string;
+}): Promise<void> {
+  try {
+    if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+      const blob = new Blob([JSON.stringify(params)], { type: 'application/json' });
+      navigator.sendBeacon(`${API_BASE_URL}/analytics/track`, blob);
+    } else {
+      await fetch(`${API_BASE_URL}/analytics/track`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params)
+      });
+    }
+  } catch {
+    // Non-blocking analytics
+  }
+}
+
+export async function fetchLiveAnalyticsApi(): Promise<LiveAnalyticsData | null> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/analytics/live`);
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (err) {
+    console.warn('API error fetching live analytics:', err);
+  }
+  return null;
+}
+
+
 

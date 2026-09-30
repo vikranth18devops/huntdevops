@@ -122,6 +122,34 @@ export async function initDatabase() {
         UNIQUE(username, topic_id)
       );
 
+      CREATE TABLE IF NOT EXISTS visitor_sessions (
+        id VARCHAR(100) PRIMARY KEY,
+        visitor_id VARCHAR(100) NOT NULL,
+        username VARCHAR(100),
+        ip_address VARCHAR(100),
+        user_agent TEXT,
+        device_os VARCHAR(100),
+        current_path VARCHAR(255) DEFAULT '/',
+        referrer TEXT,
+        first_seen_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        last_seen_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        total_page_views INT DEFAULT 1,
+        total_clicks INT DEFAULT 0
+      );
+
+      CREATE TABLE IF NOT EXISTS analytics_events (
+        id VARCHAR(100) PRIMARY KEY,
+        session_id VARCHAR(100),
+        username VARCHAR(100),
+        event_type VARCHAR(50) NOT NULL,
+        target_name VARCHAR(255) NOT NULL,
+        target_path VARCHAR(255),
+        details JSONB,
+        device_os VARCHAR(100),
+        ip_address VARCHAR(100),
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+
       ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(50);
       ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
 
@@ -131,6 +159,10 @@ export async function initDatabase() {
       CREATE INDEX IF NOT EXISTS idx_users_last_active ON users(last_active_at);
       CREATE INDEX IF NOT EXISTS idx_cert_username ON user_certificates(username);
       CREATE INDEX IF NOT EXISTS idx_cert_code ON user_certificates(certificate_code);
+      CREATE INDEX IF NOT EXISTS idx_sessions_last_seen ON visitor_sessions(last_seen_at);
+      CREATE INDEX IF NOT EXISTS idx_sessions_visitor ON visitor_sessions(visitor_id);
+      CREATE INDEX IF NOT EXISTS idx_analytics_created ON analytics_events(created_at);
+      CREATE INDEX IF NOT EXISTS idx_analytics_type ON analytics_events(event_type);
     `);
 
     client.release();

@@ -834,7 +834,249 @@ app.post('/api/certificates', async (req, res) => {
 });
 
 // -------------------------------------------------------------
-// 9. Server Boot & Auto Real-Time Sync
+// 10. Real-time Live Visitors & Click Analytics Endpoints
+// -------------------------------------------------------------
+
+// Track page visits, heartbeats, and user clicks
+app.post('/api/analytics/track', async (req, res) => {
+  const {
+    sessionId,
+    visitorId,
+    username,
+    eventType = 'PAGE_VIEW',
+    targetName = 'Homepage Visit',
+    targetPath = '/',
+    details = {},
+    deviceOS = 'Unknown Device',
+    referrer = ''
+  } = req.body;
+
+  if (!sessionId || !visitorId) {
+    return res.status(400).json({ error: 'sessionId and visitorId are required.' });
+  }
+
+  // Extract client IP address safely behind Traefik/GCP Load Balancer
+  const forwarded = req.headers['x-forwarded-for'];
+  const ipAddress = typeof forwarded === 'string'
+    ? forwarded.split(',')[0].trim()
+    : req.socket.remoteAddress || '127.0.0.1';
+  const userAgent = req.headers['user-agent'] || '';
+
+  const isPageView = eventType === 'PAGE_VIEW';
+  const isClick = !['PAGE_VIEW', 'HEARTBEAT'].includes(eventType);
+  const eventId = `evt_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+
+  if (getIsPostgresAvailable()) {
+    try {
+      // 1. Upsert Visitor Session
+      await pool.query(`
+        INSERT INTO visitor_sessions (
+          id, visitor_id, username, ip_address, user_agent, device_os,
+          current_path, referrer, first_seen_at, last_seen_at, total_page_views, total_clicks
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW(), $9, $10)
+        ON CONFLICT (id) DO UPDATE SET
+          username = COALESCE(EXCLUDED.username, visitor_sessions.username),
+          current_path = EXCLUDED.current_path,
+          device_os = EXCLUDED.device_os,
+          last_seen_at = NOW(),
+          total_page_views = visitor_sessions.total_page_views + (CASE WHEN $11 THEN 1 ELSE 0 END),
+          total_clicks = visitor_sessions.total_clicks + (CASE WHEN $12 THEN 1 ELSE 0 END)
+      `, [
+        sessionId,
+        visitorId,
+        username || null,
+        ipAddress,
+        userAgent,
+        deviceOS,
+        targetPath,
+        referrer,
+        isPageView ? 1 : 0,
+        isClick ? 1 : 0,
+        isPageView,
+        isClick
+      ]);
+
+      // 2. Insert into Analytics Events (skip pure heartbeats to keep DB lean)
+      if (eventType !== 'HEARTBEAT') {
+        await pool.query(`
+          INSERT INTO analytics_events (
+            id, session_id, username, event_type, target_name, target_path, details, device_os, ip_address, created_at
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+        `, [
+          eventId,
+          sessionId,
+          username || null,
+          eventType,
+          targetName,
+          targetPath,
+          JSON.stringify(details),
+          deviceOS,
+          ipAddress
+        ]);
+      }
+
+      // 3. Update user last_active_at if authenticated
+      if (username) {
+        await pool.query(
+          `UPDATE users SET last_active_at = NOW(), last_device_os = $2 WHERE LOWER(username) = LOWER($1)`,
+          [username, deviceOS]
+        ).catch(() => {});
+      }
+
+      return res.json({ success: true, eventId });
+    } catch (err: any) {
+      console.error('Analytics track error:', err.message);
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
+  return res.json({ success: true, fallback: true });
+});
+
+// Retrieve live active visitors, page visits & click stream for Admin Panel
+app.get('/api/analytics/live', async (req, res) => {
+  if (getIsPostgresAvailable()) {
+    try {
+      // 1. Live Active Visitors (active within last 3 minutes)
+      const activeVisitorsRes = await pool.query(`
+        SELECT 
+          s.id as "sessionId",
+          s.visitor_id as "visitorId",
+          s.username,
+          COALESCE(u.display_name, s.username, 'Guest Learner') as "displayName",
+          COALESCE(u.role, 'Visitor') as "role",
+          s.device_os as "deviceOS",
+          s.current_path as "currentPath",
+          s.ip_address as "ipAddress",
+          s.total_page_views as "totalPageViews",
+          s.total_clicks as "totalClicks",
+          TO_CHAR(s.first_seen_at, 'YYYY-MM-DD HH24:MI:SS') as "firstSeenAt",
+          TO_CHAR(s.last_seen_at, 'YYYY-MM-DD HH24:MI:SS') as "lastSeenAt",
+          ROUND(EXTRACT(EPOCH FROM (NOW() - s.first_seen_at)) / 60)::INT as "durationMinutes",
+          ROUND(EXTRACT(EPOCH FROM (NOW() - s.last_seen_at)))::INT as "secondsSinceLastActive"
+        FROM visitor_sessions s
+        LEFT JOIN users u ON LOWER(s.username) = LOWER(u.username)
+        WHERE s.last_seen_at >= NOW() - INTERVAL '3 minutes'
+        ORDER BY s.last_seen_at DESC
+      `);
+
+      const activeVisitors = activeVisitorsRes.rows;
+      const activeVisitorsCount = activeVisitors.length;
+
+      // 2. Summary Counters (Today vs All-Time)
+      const totalsRes = await pool.query(`
+        SELECT
+          COUNT(*) FILTER (WHERE event_type = 'PAGE_VIEW' AND created_at >= CURRENT_DATE) as "totalVisitsToday",
+          COUNT(*) FILTER (WHERE event_type = 'PAGE_VIEW') as "totalVisitsAllTime",
+          COUNT(*) FILTER (WHERE event_type != 'PAGE_VIEW' AND event_type != 'HEARTBEAT' AND created_at >= CURRENT_DATE) as "totalClicksToday",
+          COUNT(*) FILTER (WHERE event_type != 'PAGE_VIEW' AND event_type != 'HEARTBEAT') as "totalClicksAllTime"
+        FROM analytics_events
+      `);
+
+      const uniqueVisitorsRes = await pool.query(`
+        SELECT COUNT(DISTINCT visitor_id) as "totalUniqueVisitors" FROM visitor_sessions
+      `);
+
+      // 3. Top Clicked Modules / Actions
+      const topClicksRes = await pool.query(`
+        SELECT 
+          target_name as "targetName",
+          event_type as "eventType",
+          COUNT(*) as "clickCount"
+        FROM analytics_events
+        WHERE event_type != 'PAGE_VIEW' AND event_type != 'HEARTBEAT'
+        GROUP BY target_name, event_type
+        ORDER BY "clickCount" DESC
+        LIMIT 10
+      `);
+
+      // 4. Live Click Stream (Latest 35 actions)
+      const recentEventsRes = await pool.query(`
+        SELECT 
+          e.id,
+          e.session_id as "sessionId",
+          e.username,
+          COALESCE(u.display_name, e.username, 'Guest Learner') as "displayName",
+          e.event_type as "eventType",
+          e.target_name as "targetName",
+          e.target_path as "targetPath",
+          e.details,
+          e.device_os as "deviceOS",
+          e.ip_address as "ipAddress",
+          TO_CHAR(e.created_at, 'HH24:MI:SS') as "timeAgo",
+          TO_CHAR(e.created_at, 'YYYY-MM-DD HH24:MI:SS') as "timestamp"
+        FROM analytics_events e
+        LEFT JOIN users u ON LOWER(e.username) = LOWER(u.username)
+        ORDER BY e.created_at DESC
+        LIMIT 35
+      `);
+
+      // 5. Device & OS Breakdown
+      const deviceRes = await pool.query(`
+        SELECT 
+          COALESCE(device_os, 'Desktop Web') as "deviceOS",
+          COUNT(*) as "count"
+        FROM visitor_sessions
+        GROUP BY device_os
+        ORDER BY "count" DESC
+        LIMIT 6
+      `);
+
+      // 6. Path Breakdown
+      const pathRes = await pool.query(`
+        SELECT 
+          COALESCE(current_path, '/') as "path",
+          COUNT(*) as "visitCount"
+        FROM visitor_sessions
+        GROUP BY current_path
+        ORDER BY "visitCount" DESC
+        LIMIT 8
+      `);
+
+      const row = totalsRes.rows[0] || {};
+      const uniqueRow = uniqueVisitorsRes.rows[0] || {};
+
+      return res.json({
+        activeVisitorsCount,
+        activeVisitors,
+        totalVisitsToday: parseInt(row.totalVisitsToday || '0', 10),
+        totalVisitsAllTime: parseInt(row.totalVisitsAllTime || '0', 10),
+        totalUniqueVisitors: parseInt(uniqueRow.totalUniqueVisitors || '0', 10),
+        totalClicksToday: parseInt(row.totalClicksToday || '0', 10),
+        totalClicksAllTime: parseInt(row.totalClicksAllTime || '0', 10),
+        topClickedActions: topClicksRes.rows,
+        recentClickStream: recentEventsRes.rows,
+        deviceBreakdown: deviceRes.rows,
+        pathBreakdown: pathRes.rows,
+        serverTime: new Date().toISOString()
+      });
+    } catch (err: any) {
+      console.error('Error fetching live analytics:', err);
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
+  // Fallback if DB disconnected
+  return res.json({
+    activeVisitorsCount: 1,
+    activeVisitors: [],
+    totalVisitsToday: 1,
+    totalVisitsAllTime: 1,
+    totalUniqueVisitors: 1,
+    totalClicksToday: 0,
+    totalClicksAllTime: 0,
+    topClickedActions: [],
+    recentClickStream: [],
+    deviceBreakdown: [],
+    pathBreakdown: [],
+    serverTime: new Date().toISOString()
+  });
+});
+
+// -------------------------------------------------------------
+// 11. Server Boot & Auto Real-Time Sync
 // -------------------------------------------------------------
 initDatabase().then(async () => {
   await populateRealtimeDatabase();

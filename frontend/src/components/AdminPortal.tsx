@@ -48,7 +48,11 @@ import {
   History,
   FileSpreadsheet,
   Info,
-  Sliders
+  Sliders,
+  Radio,
+  MousePointer,
+  RefreshCw,
+  Compass
 } from 'lucide-react';
 import { getItemExperienceLevel, type Topic, type Section, type CommandItem } from '../data/sheetData';
 import { CHALLENGES, type Challenge } from '../data/practiceData';
@@ -68,7 +72,9 @@ import {
   saveLabsApi,
   deleteLabApi,
   savePlatformSettingsApi,
-  type PlatformSettings
+  fetchLiveAnalyticsApi,
+  type PlatformSettings,
+  type LiveAnalyticsData
 } from '../services/api';
 
 
@@ -533,6 +539,27 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const idleUsersCount = Math.max(0, totalRegisteredUsers - activeUsersCount);
   const learnerUsersCount = users.filter(u => (u.role || 'Learner') !== 'Admin').length;
   const adminUsersCount = users.filter(u => (u.role || 'Learner') === 'Admin').length;
+
+  // Real-time Live Visitors & Click Analytics State
+  const [liveAnalytics, setLiveAnalytics] = useState<LiveAnalyticsData | null>(null);
+  const [isAnalyticsAutoRefresh, setIsAnalyticsAutoRefresh] = useState<boolean>(true);
+  const [isRefreshingAnalytics, setIsRefreshingAnalytics] = useState<boolean>(false);
+
+  const loadLiveAnalyticsData = async () => {
+    setIsRefreshingAnalytics(true);
+    const data = await fetchLiveAnalyticsApi();
+    if (data) {
+      setLiveAnalytics(data);
+    }
+    setIsRefreshingAnalytics(false);
+  };
+
+  useEffect(() => {
+    loadLiveAnalyticsData();
+    if (!isAnalyticsAutoRefresh) return;
+    const analyticsInterval = setInterval(loadLiveAnalyticsData, 10000); // 10s auto-refresh
+    return () => clearInterval(analyticsInterval);
+  }, [isAnalyticsAutoRefresh]);
 
   // Live Activity Logs from Cloud SQL
   const [liveLogs, setLiveLogs] = useState(() => getActivityLogs());
@@ -2419,6 +2446,298 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   </p>
                 </div>
               </div>
+
+            </div>
+
+            {/* ==================================================== */}
+            {/* 🌐 LIVE TRAFFIC & USER CLICK STATUS (huntdevops.online) */}
+            {/* ==================================================== */}
+            <div className="rounded-3xl border border-cyan-500/30 bg-gradient-to-b from-slate-900 via-slate-900/95 to-slate-950 p-5 sm:p-6 space-y-6 shadow-2xl relative overflow-hidden">
+              
+              {/* Background Glow Decorative Orbs */}
+              <div className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full bg-cyan-500/10 blur-3xl animate-pulse" />
+              <div className="pointer-events-none absolute -bottom-24 -left-24 h-64 w-64 rounded-full bg-indigo-500/10 blur-3xl animate-pulse" style={{ animationDuration: '6s' }} />
+
+              {/* Section Header */}
+              <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <div className="p-1.5 rounded-xl bg-gradient-to-tr from-cyan-500 to-indigo-600 shadow-md shadow-cyan-500/20 text-white">
+                      <Radio className="h-5 w-5 animate-pulse" />
+                    </div>
+                    <h3 className="text-lg font-black text-white tracking-tight flex items-center gap-2">
+                      Live Traffic & Click Stream Telemetry
+                    </h3>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 flex items-center gap-1.5 shadow-xs">
+                      <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-ping" />
+                      https://huntdevops.online
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Real-time concurrent visitors, active session telemetry, page views, and interactive click activity stream.
+                  </p>
+                </div>
+
+                {/* Auto-Refresh Toggle & Manual Sync Controls */}
+                <div className="flex items-center gap-2.5 self-start md:self-auto shrink-0">
+                  <button
+                    onClick={() => setIsAnalyticsAutoRefresh(!isAnalyticsAutoRefresh)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                      isAnalyticsAutoRefresh
+                        ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/25'
+                        : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'
+                    }`}
+                    title="Toggle 10-second automatic polling"
+                  >
+                    <span className={`h-2 w-2 rounded-full ${isAnalyticsAutoRefresh ? 'bg-emerald-400 animate-ping' : 'bg-slate-500'}`} />
+                    <span>Auto-Refresh: {isAnalyticsAutoRefresh ? '10s (ON)' : 'PAUSED'}</span>
+                  </button>
+
+                  <button
+                    onClick={loadLiveAnalyticsData}
+                    disabled={isRefreshingAnalytics}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-bold transition-all shadow-sm cursor-pointer disabled:opacity-50"
+                    title="Refresh analytics data now"
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 text-cyan-400 ${isRefreshingAnalytics ? 'animate-spin' : ''}`} />
+                    <span>Sync</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 4 LIVE ANALYTICS STAT CARDS */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 relative z-10">
+                
+                {/* 1. Live Visitors Right Now */}
+                <div className="rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-900 p-4 space-y-2 shadow-lg shadow-emerald-950/30">
+                  <div className="flex items-center justify-between text-emerald-300">
+                    <span className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5">
+                      <Radio className="h-3.5 w-3.5 text-emerald-400 animate-pulse" /> Online Visitors Now
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      Live
+                    </span>
+                  </div>
+                  <div className="text-3xl font-black text-emerald-400 flex items-baseline gap-2">
+                    {liveAnalytics?.activeVisitorsCount ?? 1}
+                    <span className="text-xs font-normal text-slate-400">Active Sessions</span>
+                  </div>
+                  <div className="text-[10px] text-emerald-300/80 font-medium flex items-center gap-1">
+                    <Activity className="h-3 w-3 text-emerald-400" /> Active in last 3 minutes on huntdevops.online
+                  </div>
+                </div>
+
+                {/* 2. Total Page Views & Visits */}
+                <div className="rounded-2xl border border-cyan-500/30 bg-gradient-to-br from-cyan-950/40 via-slate-900 to-slate-900 p-4 space-y-2 shadow-lg shadow-cyan-950/30">
+                  <div className="flex items-center justify-between text-cyan-300">
+                    <span className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5">
+                      <Eye className="h-3.5 w-3.5 text-cyan-400" /> URL Page Visits
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                      Today: {liveAnalytics?.totalVisitsToday ?? 0}
+                    </span>
+                  </div>
+                  <div className="text-3xl font-black text-white flex items-baseline gap-2">
+                    {liveAnalytics?.totalVisitsAllTime ?? 0}
+                    <span className="text-xs font-normal text-slate-400">Lifetime Visits</span>
+                  </div>
+                  <div className="text-[10px] text-cyan-300/80 font-medium">
+                    {liveAnalytics?.totalVisitsToday ?? 0} total requests logged today
+                  </div>
+                </div>
+
+                {/* 3. Unique Visitors Count */}
+                <div className="rounded-2xl border border-indigo-500/30 bg-gradient-to-br from-indigo-950/40 via-slate-900 to-slate-900 p-4 space-y-2 shadow-lg shadow-indigo-950/30">
+                  <div className="flex items-center justify-between text-indigo-300">
+                    <span className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5">
+                      <Users className="h-3.5 w-3.5 text-indigo-400" /> Unique Visitors
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                      Devices
+                    </span>
+                  </div>
+                  <div className="text-3xl font-black text-indigo-300 flex items-baseline gap-2">
+                    {liveAnalytics?.totalUniqueVisitors ?? 1}
+                    <span className="text-xs font-normal text-slate-400">Unique Users</span>
+                  </div>
+                  <div className="text-[10px] text-indigo-300/80 font-medium">
+                    Distinct visitor fingerprints tracked
+                  </div>
+                </div>
+
+                {/* 4. Total User Clicks & Interactivity */}
+                <div className="rounded-2xl border border-purple-500/30 bg-gradient-to-br from-purple-950/40 via-slate-900 to-slate-900 p-4 space-y-2 shadow-lg shadow-purple-950/30">
+                  <div className="flex items-center justify-between text-purple-300">
+                    <span className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5">
+                      <MousePointer className="h-3.5 w-3.5 text-purple-400" /> Total User Clicks
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                      Today: {liveAnalytics?.totalClicksToday ?? 0}
+                    </span>
+                  </div>
+                  <div className="text-3xl font-black text-purple-300 flex items-baseline gap-2">
+                    {liveAnalytics?.totalClicksAllTime ?? 0}
+                    <span className="text-xs font-normal text-slate-400">Total Clicks</span>
+                  </div>
+                  <div className="text-[10px] text-purple-300/80 font-medium">
+                    Interactive buttons, commands & checklist clicks
+                  </div>
+                </div>
+
+              </div>
+
+              {/* DUAL STREAM: LIVE ACTIVE VISITORS TABLE (LEFT) + REAL-TIME CLICK STREAM (RIGHT) */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 relative z-10">
+                
+                {/* Left Panel: Currently Active Online Visitors (7 cols) */}
+                <div className="lg:col-span-7 rounded-2xl border border-slate-800 bg-slate-950/80 p-4 space-y-3 flex flex-col">
+                  <div className="flex items-center justify-between border-b border-slate-800/80 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-white">
+                        Active Online Visitors List ({liveAnalytics?.activeVisitors?.length || 0})
+                      </h4>
+                    </div>
+                    <span className="text-[10px] text-slate-400 font-mono">Real-time Sessions</span>
+                  </div>
+
+                  {(!liveAnalytics?.activeVisitors || liveAnalytics.activeVisitors.length === 0) ? (
+                    <div className="py-8 text-center space-y-2">
+                      <Globe className="h-8 w-8 text-slate-600 mx-auto animate-spin" style={{ animationDuration: '12s' }} />
+                      <p className="text-xs text-slate-400 font-medium">Waiting for incoming traffic on https://huntdevops.online ...</p>
+                      <p className="text-[10px] text-slate-500">Active sessions update automatically via 30s background heartbeats.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-72 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-700">
+                      {liveAnalytics.activeVisitors.map((visitor, idx) => (
+                        <div
+                          key={visitor.sessionId || idx}
+                          className="p-2.5 rounded-xl border border-slate-800/80 bg-slate-900/70 hover:border-slate-700 transition-all flex items-center justify-between gap-3 text-xs"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="h-8 w-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center font-bold text-white text-xs shrink-0 shadow-sm">
+                              {visitor.displayName.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-bold text-white truncate">{visitor.displayName}</span>
+                                {visitor.username ? (
+                                  <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                                    @{visitor.username}
+                                  </span>
+                                ) : (
+                                  <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-slate-800 text-slate-400 border border-slate-700">
+                                    Guest
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5 truncate">
+                                <span className="text-cyan-400 font-mono truncate">{visitor.currentPath || '/'}</span>
+                                <span>•</span>
+                                <span>{visitor.deviceOS || 'Desktop'}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-col items-end shrink-0 text-[10px] space-y-0.5">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" />
+                              Active {visitor.secondsSinceLastActive}s ago
+                            </span>
+                            <span className="text-slate-500 font-mono">
+                              {visitor.totalClicks} clicks · {visitor.durationMinutes}m online
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Right Panel: Live Real-Time Click Stream & Events (5 cols) */}
+                <div className="lg:col-span-5 rounded-2xl border border-slate-800 bg-slate-950/80 p-4 space-y-3 flex flex-col">
+                  <div className="flex items-center justify-between border-b border-slate-800/80 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <MousePointer className="h-4 w-4 text-purple-400" />
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-white">
+                        Live Click Stream
+                      </h4>
+                    </div>
+                    <span className="text-[10px] text-purple-300 font-mono bg-purple-500/20 px-2 py-0.5 rounded-md border border-purple-500/30">
+                      Recent Actions
+                    </span>
+                  </div>
+
+                  {(!liveAnalytics?.recentClickStream || liveAnalytics.recentClickStream.length === 0) ? (
+                    <div className="py-8 text-center space-y-2">
+                      <MousePointer className="h-8 w-8 text-slate-600 mx-auto animate-bounce" />
+                      <p className="text-xs text-slate-400 font-medium">Waiting for live click events...</p>
+                      <p className="text-[10px] text-slate-500">Interactive button clicks, checklist toggles & labs appear here instantly.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-700 font-mono text-[11px]">
+                      {liveAnalytics.recentClickStream.map((event, idx) => (
+                        <div
+                          key={event.id || idx}
+                          className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/60 flex items-center justify-between gap-2 hover:bg-slate-900 transition-colors"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-[10px] text-slate-500 shrink-0">{event.timeAgo || 'Now'}</span>
+                            <span className="font-bold text-slate-200 truncate" title={event.targetName}>
+                              {event.targetName}
+                            </span>
+                          </div>
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 shrink-0">
+                            {event.eventType}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+              </div>
+
+              {/* BOTTOM STATS ROW: TOP CLICKED ACTIONS & ROUTE DISTRIBUTION */}
+              {liveAnalytics?.topClickedActions && liveAnalytics.topClickedActions.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-800/80 relative z-10">
+                  
+                  {/* Top Clicked Features / Topics */}
+                  <div className="p-3.5 rounded-xl border border-slate-800/80 bg-slate-900/60 space-y-2">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5 text-amber-400" /> Most Clicked Modules & Features
+                    </span>
+                    <div className="space-y-1.5">
+                      {liveAnalytics.topClickedActions.slice(0, 5).map((action, idx) => (
+                        <div key={idx} className="flex items-center justify-between text-xs py-1 px-2 rounded-lg bg-slate-950/60 border border-slate-800/60">
+                          <span className="text-slate-300 truncate font-medium">{action.targetName}</span>
+                          <span className="text-amber-400 font-bold font-mono shrink-0 pl-2">
+                            {action.clickCount} clicks
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Traffic Route Breakdown */}
+                  <div className="p-3.5 rounded-xl border border-slate-800/80 bg-slate-900/60 space-y-2">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                      <Compass className="h-3.5 w-3.5 text-cyan-400" /> Route Traffic Breakdown
+                    </span>
+                    <div className="space-y-1.5">
+                      {(liveAnalytics.pathBreakdown || []).slice(0, 5).map((pathItem, idx) => (
+                        <div key={idx} className="flex items-center justify-between text-xs py-1 px-2 rounded-lg bg-slate-950/60 border border-slate-800/60">
+                          <span className="text-cyan-300 truncate font-mono">{pathItem.path}</span>
+                          <span className="text-slate-400 font-mono shrink-0 pl-2">
+                            {pathItem.visitCount} visits
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                </div>
+              )}
 
             </div>
 
