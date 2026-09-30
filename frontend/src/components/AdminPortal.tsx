@@ -2070,8 +2070,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 </div>
             </div>
 
-            {/* Navigation Tabs & Logout */}
-            <div className="flex items-center gap-3 overflow-x-auto scrollbar-none py-1 min-w-0">
+            {/* Center Navigation Tabs */}
+            <div className="flex-1 flex items-center justify-center min-w-0 px-2 overflow-x-auto scrollbar-none py-1">
               <nav className="flex items-center gap-1.5 rounded-2xl bg-slate-950/90 p-1.5 border border-slate-800/80 backdrop-blur-md overflow-x-auto scrollbar-none flex-nowrap shrink-0">
                 
                 {/* 1. Platform Dashboard */}
@@ -2170,14 +2170,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   </span>
                 </button>
               </nav>
+            </div>
 
+            {/* Right Always-Visible Logout Action */}
+            <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={handleAdminLogout}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-rose-500/40 bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 hover:border-rose-500/60 hover:shadow-lg hover:shadow-rose-500/10 text-xs font-bold transition-all shrink-0 cursor-pointer"
+                className="flex items-center gap-2 px-4 py-2 rounded-xl border border-rose-500/50 bg-gradient-to-r from-rose-600/30 to-rose-700/30 text-rose-200 hover:from-rose-600/50 hover:to-rose-700/50 hover:text-white hover:border-rose-400 hover:shadow-lg hover:shadow-rose-600/20 text-xs font-black transition-all shrink-0 cursor-pointer active:scale-95"
                 title="Sign Out Admin Session"
               >
-                <LogOut className="h-4 w-4 text-rose-400" />
-                <span>Logout</span>
+                <LogOut className="h-4 w-4 text-rose-400 animate-pulse" />
+                <span className="tracking-wide">Logout</span>
               </button>
             </div>
 

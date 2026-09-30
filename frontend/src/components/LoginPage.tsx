@@ -208,7 +208,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, topics }) 
 
 
   return (
-    <div className="relative min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4 sm:p-6 lg:p-10 font-sans antialiased selection:bg-indigo-500/30 overflow-hidden">
+    <div className="relative min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4 sm:p-6 lg:p-10 font-sans antialiased selection:bg-indigo-500/30 overflow-hidden select-none">
       
       {/* DRIBBBLE ANIMATED BACKGROUND ORBS & FLOATING LIGHT MESH */}
       <div className="pointer-events-none absolute -top-48 -left-48 h-[600px] w-[600px] rounded-full bg-gradient-to-br from-indigo-600/20 via-purple-600/15 to-transparent blur-[140px] animate-pulse" style={{ animationDuration: '8s' }} />

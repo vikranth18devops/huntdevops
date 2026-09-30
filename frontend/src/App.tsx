@@ -61,6 +61,49 @@ export function App() {
     };
   }, []);
 
+  // Protect Learner UI Content: Disable Right-Click, Copy, Cut, and Clipboard shortcuts on User UI only
+  useEffect(() => {
+    // Keep Admin Portal completely unrestricted for system administrators
+    if (currentPath === '/admin') return;
+
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+    };
+
+    const handleCopyCut = (e: ClipboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isInputOrTextArea = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+      if (!isInputOrTextArea) {
+        e.preventDefault();
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+      const target = e.target as HTMLElement | null;
+      const isInputOrTextArea = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+
+      if (isCtrlOrCmd && !isInputOrTextArea) {
+        // Block Ctrl+C (Copy), Ctrl+X (Cut), Ctrl+U (View Source), Ctrl+S (Save Page), Ctrl+P (Print)
+        if (['c', 'C', 'x', 'X', 'u', 'U', 's', 'S', 'p', 'P'].includes(e.key)) {
+          e.preventDefault();
+        }
+      }
+    };
+
+    document.addEventListener('contextmenu', handleContextMenu);
+    document.addEventListener('copy', handleCopyCut);
+    document.addEventListener('cut', handleCopyCut);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('contextmenu', handleContextMenu);
+      document.removeEventListener('copy', handleCopyCut);
+      document.removeEventListener('cut', handleCopyCut);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [currentPath]);
+
   const navigateTo = (path: string) => {
     window.history.pushState({}, '', path);
     setCurrentPath(path);
@@ -460,7 +503,7 @@ export function App() {
 
   // ROUTE 3: Authenticated View for Learner Platform (/)
   return (
-    <div className="min-h-screen bg-background text-foreground font-sans antialiased selection:bg-indigo-500/20">
+    <div className="min-h-screen bg-background text-foreground font-sans antialiased selection:bg-indigo-500/20 select-none">
 
       {/* Top Navbar */}
       <Navbar
