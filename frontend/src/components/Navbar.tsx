@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   CheckSquare, 
   ShieldAlert, 
@@ -8,7 +8,10 @@ import {
   Flame,
   Menu,
   X,
-  Sparkles
+  Sparkles,
+  FlaskConical,
+  ChevronDown,
+  Check
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -47,6 +50,19 @@ export const Navbar: React.FC<NavbarProps> = ({
   isLearningPathEnabled = true,
   isTroubleshootingLabsEnabled = true
 }) => {
+  const [isLabDropdownOpen, setIsLabDropdownOpen] = useState(false);
+  const labDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (labDropdownRef.current && !labDropdownRef.current.contains(e.target as Node)) {
+        setIsLabDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur-md">
       <div className="mx-auto max-w-7xl px-3 sm:px-6 lg:px-8">
@@ -85,35 +101,118 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             </a>
 
-            {/* Navigation Tabs */}
+            {/* UNIFIED "LAB" DROPDOWN NAVIGATION (TS-Lab & LP-Lab) */}
             {(isLearningPathEnabled || isTroubleshootingLabsEnabled) && (
-              <nav className="hidden md:flex items-center gap-1 rounded-2xl bg-slate-100 p-1 border border-slate-200">
-                {isLearningPathEnabled && (
-                  <button
-                    onClick={() => setActiveTab('sheet')}
-                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'sheet'
-                        ? 'bg-white text-indigo-600 shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                  >
-                    <CheckSquare className="h-5 w-5 text-indigo-600 shrink-0" />
-                    <span>Learning Path</span>
-                  </button>
-                )}
+              <div className="relative" ref={labDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsLabDropdownOpen(!isLabDropdownOpen)}
+                  className={`flex items-center gap-2 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-2xl border text-xs font-black transition-all shadow-xs cursor-pointer ${
+                    isLabDropdownOpen
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-500/25'
+                      : 'bg-slate-100 hover:bg-slate-200/90 text-slate-800 border-slate-200/80 hover:border-slate-300'
+                  }`}
+                  aria-expanded={isLabDropdownOpen}
+                  title="Select Lab Mode: TS-Lab or LP-Lab"
+                >
+                  <FlaskConical className={`h-4 w-4 ${isLabDropdownOpen ? 'text-cyan-300' : 'text-indigo-600'}`} />
+                  <span className="tracking-wide">LAB</span>
+                  <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-lg transition-colors ${
+                    isLabDropdownOpen
+                      ? 'bg-indigo-800 text-cyan-200'
+                      : activeTab === 'practice'
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300/60'
+                        : 'bg-white text-indigo-700 border border-indigo-200/80 shadow-xs'
+                  }`}>
+                    {activeTab === 'practice' ? 'TS-Lab' : 'LP-Lab'}
+                  </span>
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${isLabDropdownOpen ? 'rotate-180 text-white' : 'text-slate-500'}`} />
+                </button>
 
-                {isTroubleshootingLabsEnabled && (
-                  <button
-                    onClick={() => setActiveTab('practice')}
-                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'practice'
-                        ? 'bg-white text-indigo-600 shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                  >
-                    <ShieldAlert className="h-5 w-5 text-emerald-600 shrink-0" />
-                    <span>Troubleshooting Labs</span>
-                  </button>
+                {/* Dropdown Menu Modal */}
+                {isLabDropdownOpen && (
+                  <div className="absolute left-0 mt-2 w-72 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur-xl p-2 shadow-2xl shadow-indigo-950/15 z-50 animate-in fade-in zoom-in-95 duration-150">
+                    <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 flex items-center justify-between">
+                      <span>DevOps Hands-on Labs</span>
+                      <span className="text-[9px] font-mono text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">2 Modes</span>
+                    </div>
+
+                    <div className="mt-1.5 space-y-1">
+                      {/* TS-Lab (Troubleshooting Practice) */}
+                      {isTroubleshootingLabsEnabled && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveTab('practice');
+                            setIsLabDropdownOpen(false);
+                          }}
+                          className={`w-full flex items-center justify-between p-2.5 rounded-xl text-left transition-all cursor-pointer ${
+                            activeTab === 'practice'
+                              ? 'bg-emerald-50/90 text-emerald-900 font-bold border border-emerald-300/80 shadow-xs'
+                              : 'hover:bg-slate-50 text-slate-700 border border-transparent'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className={`p-2 rounded-xl shrink-0 ${activeTab === 'practice' ? 'bg-emerald-600 text-white' : 'bg-emerald-500/10 text-emerald-600'}`}>
+                              <ShieldAlert className="h-4 w-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-xs font-black flex items-center gap-1.5 text-slate-900">
+                                <span>TS-Lab</span>
+                                <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100/70 px-1.5 py-0.2 rounded">
+                                  Troubleshooting
+                                </span>
+                              </div>
+                              <div className="text-[10px] text-slate-500 truncate mt-0.5">
+                                Live incident triage & SRE scenarios
+                              </div>
+                            </div>
+                          </div>
+                          {activeTab === 'practice' && (
+                            <Check className="h-4 w-4 text-emerald-600 shrink-0 ml-1" />
+                          )}
+                        </button>
+                      )}
+
+                      {/* LP-Lab (Learning Path Master Sheet) */}
+                      {isLearningPathEnabled && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveTab('sheet');
+                            setIsLabDropdownOpen(false);
+                          }}
+                          className={`w-full flex items-center justify-between p-2.5 rounded-xl text-left transition-all cursor-pointer ${
+                            activeTab === 'sheet'
+                              ? 'bg-indigo-50/90 text-indigo-900 font-bold border border-indigo-300/80 shadow-xs'
+                              : 'hover:bg-slate-50 text-slate-700 border border-transparent'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className={`p-2 rounded-xl shrink-0 ${activeTab === 'sheet' ? 'bg-indigo-600 text-white' : 'bg-indigo-500/10 text-indigo-600'}`}>
+                              <CheckSquare className="h-4 w-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-xs font-black flex items-center gap-1.5 text-slate-900">
+                                <span>LP-Lab</span>
+                                <span className="text-[10px] font-semibold text-indigo-700 bg-indigo-100/70 px-1.5 py-0.2 rounded">
+                                  Learning Path
+                                </span>
+                              </div>
+                              <div className="text-[10px] text-slate-500 truncate mt-0.5">
+                                DevOps command checklist & certifications
+                              </div>
+                            </div>
+                          </div>
+                          {activeTab === 'sheet' && (
+                            <Check className="h-4 w-4 text-indigo-600 shrink-0 ml-1" />
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 )}
-              </nav>
+              </div>
             )}
           </div>
 

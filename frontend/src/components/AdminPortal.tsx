@@ -1925,65 +1925,66 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   // Computed platform aggregate metrics for Dashboard
   const allUserMetrics = useMemo(() => users.map(u => getUserReportMetrics(u, topics)), [users, topics]);
 
-  // Real-time Module Completion & Pass Rate Breakdown for all current & future modules
+  // Real-time Module Completion & Pass Rate Breakdown for all enabled modules (only shown when admin enables)
   const realModuleStats = useMemo(() => {
-    return topics.map((t) => {
-      const totalQuestions = t.sections.reduce(
-        (acc, s) => acc + s.commands.reduce((cAcc, c) => cAcc + c.items.length, 0),
-        0
-      );
-      const activeSubmodules = t.sections.filter(s => !s.disabled).length;
-      const totalSubmodules = t.sections.length;
+    return topics
+      .filter((t) => !t.disabled)
+      .map((t) => {
+        const totalQuestions = t.sections.reduce(
+          (acc, s) => acc + s.commands.reduce((cAcc, c) => cAcc + c.items.length, 0),
+          0
+        );
+        const activeSubmodules = t.sections.filter(s => !s.disabled).length;
+        const totalSubmodules = t.sections.length;
 
-      // Extract user scores for this module
-      const userScores = allUserMetrics.map(u => {
-        const ms = u.moduleScores.find(m => m.topicId === t.id);
+        // Extract user scores for this module
+        const userScores = allUserMetrics.map(u => {
+          const ms = u.moduleScores.find(m => m.topicId === t.id);
+          return {
+            scorePercent: ms ? ms.scorePercent : 0,
+            correctCount: ms ? ms.correctCount : 0,
+            passed: ms ? ms.passed : false,
+            attempted: ms ? ms.correctCount > 0 : false
+          };
+        });
+
+        const passedCount = userScores.filter(s => s.passed).length;
+        const attemptedCount = userScores.filter(s => s.attempted).length;
+        const enrolledCount = users.length;
+
+        const avgScore = enrolledCount > 0
+          ? Math.round(userScores.reduce((acc, s) => acc + s.scorePercent, 0) / enrolledCount)
+          : 0;
+
+        const passRate = enrolledCount > 0
+          ? Math.round((passedCount / enrolledCount) * 100)
+          : 0;
+
+        const attemptedPassRate = attemptedCount > 0
+          ? Math.round((passedCount / attemptedCount) * 100)
+          : 0;
+
         return {
-          scorePercent: ms ? ms.scorePercent : 0,
-          correctCount: ms ? ms.correctCount : 0,
-          passed: ms ? ms.passed : false,
-          attempted: ms ? ms.correctCount > 0 : false
+          topic: t,
+          totalQuestions,
+          activeSubmodules,
+          totalSubmodules,
+          passedCount,
+          attemptedCount,
+          enrolledCount,
+          avgScore,
+          passRate,
+          attemptedPassRate,
+          isPassing: (attemptedCount > 0 ? attemptedPassRate : avgScore) >= 75 || passRate >= 75,
+          isDisabled: false
         };
       });
-
-      const passedCount = userScores.filter(s => s.passed).length;
-      const attemptedCount = userScores.filter(s => s.attempted).length;
-      const enrolledCount = users.length;
-
-      const avgScore = enrolledCount > 0
-        ? Math.round(userScores.reduce((acc, s) => acc + s.scorePercent, 0) / enrolledCount)
-        : 0;
-
-      const passRate = enrolledCount > 0
-        ? Math.round((passedCount / enrolledCount) * 100)
-        : 0;
-
-      const attemptedPassRate = attemptedCount > 0
-        ? Math.round((passedCount / attemptedCount) * 100)
-        : 0;
-
-      return {
-        topic: t,
-        totalQuestions,
-        activeSubmodules,
-        totalSubmodules,
-        passedCount,
-        attemptedCount,
-        enrolledCount,
-        avgScore,
-        passRate,
-        attemptedPassRate,
-        isPassing: (attemptedCount > 0 ? attemptedPassRate : avgScore) >= 75 || passRate >= 75,
-        isDisabled: !!t.disabled
-      };
-    });
   }, [topics, users, allUserMetrics]);
 
   const overallAvgPassRate = useMemo(() => {
-    const activeStats = realModuleStats.filter(m => !m.isDisabled);
-    if (activeStats.length === 0) return 0;
-    const sum = activeStats.reduce((acc, m) => acc + (m.attemptedCount > 0 ? m.attemptedPassRate : m.avgScore), 0);
-    return Math.round(sum / activeStats.length);
+    if (realModuleStats.length === 0) return 0;
+    const sum = realModuleStats.reduce((acc, m) => acc + (m.attemptedCount > 0 ? m.attemptedPassRate : m.avgScore), 0);
+    return Math.round(sum / realModuleStats.length);
   }, [realModuleStats]);
 
   const totalLabsSolvedAggregate = allUserMetrics.reduce((acc, m) => acc + m.labsSolvedCount, 0);
@@ -2505,11 +2506,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 </div>
               </div>
 
-              {/* 4 LIVE ANALYTICS STAT CARDS */}
+              {/* 4 LIVE ANALYTICS STAT CARDS WITH MOUSEOVER TOOLTIPS */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 relative z-10">
                 
                 {/* 1. Live Visitors Right Now */}
-                <div className="rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-900 p-4 space-y-2 shadow-lg shadow-emerald-950/30">
+                <div className="group relative rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-900 p-4 space-y-2 shadow-lg shadow-emerald-950/30 cursor-pointer hover:border-emerald-400/60 transition-all">
                   <div className="flex items-center justify-between text-emerald-300">
                     <span className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5">
                       <Radio className="h-3.5 w-3.5 text-emerald-400 animate-pulse" /> Online Visitors Now
@@ -2525,10 +2526,34 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   <div className="text-[10px] text-emerald-300/80 font-medium flex items-center gap-1">
                     <Activity className="h-3 w-3 text-emerald-400" /> Active in last 3 minutes on huntdevops.online
                   </div>
+
+                  {/* HOVER POPOVER */}
+                  <div className="absolute inset-x-0 bottom-full mb-2 hidden group-hover:flex flex-col gap-1.5 p-3 rounded-2xl bg-slate-950/95 border border-emerald-500/50 backdrop-blur-xl shadow-2xl z-50 text-xs pointer-events-none animate-in fade-in zoom-in-95 duration-150">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-1">
+                      <span className="font-bold text-white flex items-center gap-1.5">
+                        <Radio className="h-3.5 w-3.5 text-emerald-400" /> Live Visitor Telemetry
+                      </span>
+                      <span className="text-[9px] font-mono text-emerald-400 bg-emerald-500/20 px-1.5 py-0.5 rounded">3-Min Window</span>
+                    </div>
+                    <div className="space-y-1 text-[11px] text-slate-300">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Target Host:</span>
+                        <span className="font-mono font-bold text-cyan-300">huntdevops.online</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Active Sessions:</span>
+                        <span className="font-mono font-bold text-emerald-400">{liveAnalytics?.activeVisitorsCount ?? 1} Live Users</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Heartbeat Frequency:</span>
+                        <span className="font-mono text-slate-300">30s Client Ping</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 {/* 2. Total Page Views & Visits */}
-                <div className="rounded-2xl border border-cyan-500/30 bg-gradient-to-br from-cyan-950/40 via-slate-900 to-slate-900 p-4 space-y-2 shadow-lg shadow-cyan-950/30">
+                <div className="group relative rounded-2xl border border-cyan-500/30 bg-gradient-to-br from-cyan-950/40 via-slate-900 to-slate-900 p-4 space-y-2 shadow-lg shadow-cyan-950/30 cursor-pointer hover:border-cyan-400/60 transition-all">
                   <div className="flex items-center justify-between text-cyan-300">
                     <span className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5">
                       <Eye className="h-3.5 w-3.5 text-cyan-400" /> URL Page Visits
@@ -2544,10 +2569,34 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   <div className="text-[10px] text-cyan-300/80 font-medium">
                     {liveAnalytics?.totalVisitsToday ?? 0} total requests logged today
                   </div>
+
+                  {/* HOVER POPOVER */}
+                  <div className="absolute inset-x-0 bottom-full mb-2 hidden group-hover:flex flex-col gap-1.5 p-3 rounded-2xl bg-slate-950/95 border border-cyan-500/50 backdrop-blur-xl shadow-2xl z-50 text-xs pointer-events-none animate-in fade-in zoom-in-95 duration-150">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-1">
+                      <span className="font-bold text-white flex items-center gap-1.5">
+                        <Eye className="h-3.5 w-3.5 text-cyan-400" /> Web Traffic Volume
+                      </span>
+                      <span className="text-[9px] font-mono text-cyan-400 bg-cyan-500/20 px-1.5 py-0.5 rounded">All Routes</span>
+                    </div>
+                    <div className="space-y-1 text-[11px] text-slate-300">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Today's Visits:</span>
+                        <span className="font-mono font-bold text-cyan-300">{liveAnalytics?.totalVisitsToday ?? 0} hits</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Lifetime Hits:</span>
+                        <span className="font-mono font-bold text-white">{liveAnalytics?.totalVisitsAllTime ?? 0} hits</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Security Protocol:</span>
+                        <span className="font-mono text-emerald-400">TLS 1.3 / HTTP/2</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 {/* 3. Unique Visitors Count */}
-                <div className="rounded-2xl border border-indigo-500/30 bg-gradient-to-br from-indigo-950/40 via-slate-900 to-slate-900 p-4 space-y-2 shadow-lg shadow-indigo-950/30">
+                <div className="group relative rounded-2xl border border-indigo-500/30 bg-gradient-to-br from-indigo-950/40 via-slate-900 to-slate-900 p-4 space-y-2 shadow-lg shadow-indigo-950/30 cursor-pointer hover:border-indigo-400/60 transition-all">
                   <div className="flex items-center justify-between text-indigo-300">
                     <span className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5">
                       <Users className="h-3.5 w-3.5 text-indigo-400" /> Unique Visitors
@@ -2563,10 +2612,30 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   <div className="text-[10px] text-indigo-300/80 font-medium">
                     Distinct visitor fingerprints tracked
                   </div>
+
+                  {/* HOVER POPOVER */}
+                  <div className="absolute inset-x-0 bottom-full mb-2 hidden group-hover:flex flex-col gap-1.5 p-3 rounded-2xl bg-slate-950/95 border border-indigo-500/50 backdrop-blur-xl shadow-2xl z-50 text-xs pointer-events-none animate-in fade-in zoom-in-95 duration-150">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-1">
+                      <span className="font-bold text-white flex items-center gap-1.5">
+                        <Users className="h-3.5 w-3.5 text-indigo-400" /> Unique Fingerprints
+                      </span>
+                      <span className="text-[9px] font-mono text-indigo-400 bg-indigo-500/20 px-1.5 py-0.5 rounded">Deduplicated</span>
+                    </div>
+                    <div className="space-y-1 text-[11px] text-slate-300">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Total Unique Devices:</span>
+                        <span className="font-mono font-bold text-indigo-300">{liveAnalytics?.totalUniqueVisitors ?? 1} devices</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Identification:</span>
+                        <span className="font-mono text-slate-300">Persistent UUID & Session Tokens</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 {/* 4. Total User Clicks & Interactivity */}
-                <div className="rounded-2xl border border-purple-500/30 bg-gradient-to-br from-purple-950/40 via-slate-900 to-slate-900 p-4 space-y-2 shadow-lg shadow-purple-950/30">
+                <div className="group relative rounded-2xl border border-purple-500/30 bg-gradient-to-br from-purple-950/40 via-slate-900 to-slate-900 p-4 space-y-2 shadow-lg shadow-purple-950/30 cursor-pointer hover:border-purple-400/60 transition-all">
                   <div className="flex items-center justify-between text-purple-300">
                     <span className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5">
                       <MousePointer className="h-3.5 w-3.5 text-purple-400" /> Total User Clicks
@@ -2581,6 +2650,30 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   </div>
                   <div className="text-[10px] text-purple-300/80 font-medium">
                     Interactive buttons, commands & checklist clicks
+                  </div>
+
+                  {/* HOVER POPOVER */}
+                  <div className="absolute inset-x-0 bottom-full mb-2 hidden group-hover:flex flex-col gap-1.5 p-3 rounded-2xl bg-slate-950/95 border border-purple-500/50 backdrop-blur-xl shadow-2xl z-50 text-xs pointer-events-none animate-in fade-in zoom-in-95 duration-150">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-1">
+                      <span className="font-bold text-white flex items-center gap-1.5">
+                        <MousePointer className="h-3.5 w-3.5 text-purple-400" /> User Interaction Stream
+                      </span>
+                      <span className="text-[9px] font-mono text-purple-400 bg-purple-500/20 px-1.5 py-0.5 rounded">Real-time</span>
+                    </div>
+                    <div className="space-y-1 text-[11px] text-slate-300">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Today's Clicks:</span>
+                        <span className="font-mono font-bold text-purple-300">{liveAnalytics?.totalClicksToday ?? 0} clicks</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Lifetime Clicks:</span>
+                        <span className="font-mono font-bold text-white">{liveAnalytics?.totalClicksAllTime ?? 0} clicks</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Action Scope:</span>
+                        <span className="font-mono text-slate-300">LP-Lab, TS-Lab, Auth & Tabs</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -2612,7 +2705,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       {liveAnalytics.activeVisitors.map((visitor, idx) => (
                         <div
                           key={visitor.sessionId || idx}
-                          className="p-2.5 rounded-xl border border-slate-800/80 bg-slate-900/70 hover:border-slate-700 transition-all flex items-center justify-between gap-3 text-xs"
+                          className="group relative p-2.5 rounded-xl border border-slate-800/80 bg-slate-900/70 hover:border-indigo-500/60 hover:bg-slate-900 transition-all flex items-center justify-between gap-3 text-xs cursor-pointer"
                         >
                           <div className="flex items-center gap-2.5 min-w-0">
                             <div className="h-8 w-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center font-bold text-white text-xs shrink-0 shadow-sm">
@@ -2648,6 +2741,24 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                               {visitor.totalClicks} clicks · {visitor.durationMinutes}m online
                             </span>
                           </div>
+
+                          {/* MOUSEOVER HOVER POPOVER FOR VISITOR ROW */}
+                          <div className="absolute left-0 right-0 bottom-full mb-1.5 hidden group-hover:flex flex-col gap-1.5 p-3 rounded-2xl bg-slate-950/98 border border-indigo-500/60 backdrop-blur-xl shadow-2xl z-50 text-xs pointer-events-none animate-in fade-in zoom-in-95 duration-150">
+                            <div className="flex items-center justify-between border-b border-slate-800 pb-1">
+                              <span className="font-bold text-white flex items-center gap-1.5">
+                                <Globe className="h-3.5 w-3.5 text-cyan-400" /> Visitor Session Profile
+                              </span>
+                              <span className="text-[9px] font-mono text-emerald-400 bg-emerald-500/20 px-1.5 py-0.5 rounded">Online Now</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-slate-300">
+                              <div><span className="text-slate-500">Session ID:</span> <span className="font-mono text-slate-300">{visitor.sessionId?.slice(0, 14)}...</span></div>
+                              <div><span className="text-slate-500">Visitor IP:</span> <span className="font-mono text-cyan-300">{visitor.ipAddress || '127.0.0.1'}</span></div>
+                              <div><span className="text-slate-500">Active URL:</span> <span className="font-mono text-indigo-300">{visitor.currentPath || '/'}</span></div>
+                              <div><span className="text-slate-500">Client Agent:</span> <span className="font-mono text-slate-300">{visitor.deviceOS || 'Desktop'}</span></div>
+                              <div><span className="text-slate-500">Time Online:</span> <span className="font-mono text-white">{visitor.durationMinutes} minutes</span></div>
+                              <div><span className="text-slate-500">Clicks Logged:</span> <span className="font-mono text-amber-400">{visitor.totalClicks} interactions</span></div>
+                            </div>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -2679,7 +2790,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       {liveAnalytics.recentClickStream.map((event, idx) => (
                         <div
                           key={event.id || idx}
-                          className="p-2 rounded-xl bg-slate-900/60 border border-slate-800/60 flex items-center justify-between gap-2 hover:bg-slate-900 transition-colors"
+                          className="group relative p-2 rounded-xl bg-slate-900/60 border border-slate-800/60 flex items-center justify-between gap-2 hover:bg-slate-900 hover:border-purple-500/50 transition-all cursor-pointer"
                         >
                           <div className="flex items-center gap-2 min-w-0">
                             <span className="text-[10px] text-slate-500 shrink-0">{event.timeAgo || 'Now'}</span>
@@ -2690,6 +2801,23 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 shrink-0">
                             {event.eventType}
                           </span>
+
+                          {/* MOUSEOVER HOVER POPOVER FOR CLICK EVENT */}
+                          <div className="absolute left-0 right-0 bottom-full mb-1 hidden group-hover:flex flex-col gap-1 p-2.5 rounded-xl bg-slate-950/98 border border-purple-500/60 backdrop-blur-xl shadow-2xl z-50 text-xs pointer-events-none animate-in fade-in zoom-in-95 duration-150 font-sans">
+                            <div className="flex items-center justify-between border-b border-slate-800 pb-1">
+                              <span className="font-bold text-purple-300 flex items-center gap-1">
+                                <MousePointer className="h-3 w-3 text-purple-400" /> {event.eventType}
+                              </span>
+                              <span className="text-[9px] font-mono text-slate-400">{event.timeAgo || 'Just now'}</span>
+                            </div>
+                            <div className="text-[11px] text-slate-300 space-y-0.5">
+                              <div><span className="text-slate-500">Target Element:</span> <strong className="text-white">{event.targetName}</strong></div>
+                              <div><span className="text-slate-500">Origin Route:</span> <span className="font-mono text-cyan-300">{event.targetPath || '/'}</span></div>
+                              {event.username && (
+                                <div><span className="text-slate-500">Triggered By:</span> <span className="font-mono text-indigo-300">@{event.username}</span></div>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -2709,11 +2837,23 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     </span>
                     <div className="space-y-1.5">
                       {liveAnalytics.topClickedActions.slice(0, 5).map((action, idx) => (
-                        <div key={idx} className="flex items-center justify-between text-xs py-1 px-2 rounded-lg bg-slate-950/60 border border-slate-800/60">
+                        <div key={idx} className="group relative flex items-center justify-between text-xs py-1 px-2 rounded-lg bg-slate-950/60 border border-slate-800/60 hover:border-amber-500/50 hover:bg-slate-900 transition-all cursor-pointer">
                           <span className="text-slate-300 truncate font-medium">{action.targetName}</span>
                           <span className="text-amber-400 font-bold font-mono shrink-0 pl-2">
                             {action.clickCount} clicks
                           </span>
+
+                          {/* HOVER POPOVER */}
+                          <div className="absolute left-0 right-0 bottom-full mb-1 hidden group-hover:flex flex-col gap-1 p-2 rounded-xl bg-slate-950/98 border border-amber-500/60 backdrop-blur-xl shadow-2xl z-50 text-[11px] pointer-events-none animate-in fade-in zoom-in-95 duration-150">
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Interactive Element:</span>
+                              <strong className="text-white truncate ml-2">{action.targetName}</strong>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Total Recorded Clicks:</span>
+                              <span className="font-mono font-bold text-amber-400">{action.clickCount} clicks</span>
+                            </div>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -2726,11 +2866,23 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     </span>
                     <div className="space-y-1.5">
                       {(liveAnalytics.pathBreakdown || []).slice(0, 5).map((pathItem, idx) => (
-                        <div key={idx} className="flex items-center justify-between text-xs py-1 px-2 rounded-lg bg-slate-950/60 border border-slate-800/60">
+                        <div key={idx} className="group relative flex items-center justify-between text-xs py-1 px-2 rounded-lg bg-slate-950/60 border border-slate-800/60 hover:border-cyan-500/50 hover:bg-slate-900 transition-all cursor-pointer">
                           <span className="text-cyan-300 truncate font-mono">{pathItem.path}</span>
                           <span className="text-slate-400 font-mono shrink-0 pl-2">
                             {pathItem.visitCount} visits
                           </span>
+
+                          {/* HOVER POPOVER */}
+                          <div className="absolute left-0 right-0 bottom-full mb-1 hidden group-hover:flex flex-col gap-1 p-2 rounded-xl bg-slate-950/98 border border-cyan-500/60 backdrop-blur-xl shadow-2xl z-50 text-[11px] pointer-events-none animate-in fade-in zoom-in-95 duration-150">
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Route Endpoint:</span>
+                              <span className="font-mono font-bold text-cyan-300">{pathItem.path}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Total Page Hits:</span>
+                              <span className="font-mono font-bold text-white">{pathItem.visitCount} visits</span>
+                            </div>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -2864,43 +3016,40 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-mono text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
-                    {activeModulesCount} Active / {topics.length} Total Stacks
+                    {realModuleStats.length} Enabled Modules
                   </span>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {realModuleStats.map((stat) => {
-                  const displayRate = stat.attemptedCount > 0 ? stat.attemptedPassRate : stat.avgScore;
-                  const isPassing = displayRate >= 75 || stat.passRate >= 75;
+              {realModuleStats.length === 0 ? (
+                <div className="py-10 px-4 rounded-xl border border-dashed border-slate-800 bg-slate-950/60 text-center space-y-2">
+                  <p className="text-sm font-bold text-slate-400">No curriculum modules are currently enabled</p>
+                  <p className="text-xs text-slate-500">Go to Curriculum (LP-Lab) and enable modules for learners to see pass rate analytics here.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {realModuleStats.map((stat) => {
+                    const displayRate = stat.attemptedCount > 0 ? stat.attemptedPassRate : stat.avgScore;
+                    const isPassing = displayRate >= 75 || stat.passRate >= 75;
 
-                  return (
-                    <div 
-                      key={stat.topic.id} 
-                      className={`group relative rounded-xl border p-4 space-y-3 transition-all cursor-pointer ${
-                        stat.isDisabled 
-                          ? 'border-slate-800/60 bg-slate-950/50 opacity-60' 
-                          : 'border-slate-800 bg-slate-950 hover:border-indigo-500/60 hover:shadow-lg'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span className="font-bold text-xs text-white truncate">{stat.topic.title}</span>
-                          <Info className="h-3 w-3 text-slate-500 group-hover:text-indigo-400 opacity-60 group-hover:opacity-100 transition-all shrink-0" />
-                          {stat.isDisabled && (
-                            <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-slate-800 text-slate-400 border border-slate-700 shrink-0">
-                              Disabled
-                            </span>
-                          )}
+                    return (
+                      <div 
+                        key={stat.topic.id} 
+                        className="group relative rounded-xl border border-slate-800 bg-slate-950 hover:border-indigo-500/60 hover:shadow-lg p-4 space-y-3 transition-all cursor-pointer"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="font-bold text-xs text-white truncate">{stat.topic.title}</span>
+                            <Info className="h-3 w-3 text-slate-500 group-hover:text-indigo-400 opacity-60 group-hover:opacity-100 transition-all shrink-0" />
+                          </div>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${
+                            isPassing
+                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                              : 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                          }`}>
+                            {displayRate}% Pass Rate
+                          </span>
                         </div>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${
-                          isPassing
-                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                            : 'bg-amber-500/10 text-amber-300 border-amber-500/30'
-                        }`}>
-                          {displayRate}% Pass Rate
-                        </span>
-                      </div>
 
                       <div className="space-y-1">
                         <div className="flex items-center justify-between text-[10px] text-slate-400">
@@ -2966,6 +3115,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   );
                 })}
               </div>
+              )}
             </div>
 
             {/* LEARNER PERFORMANCE LEADERBOARD TABLE WITH PAGINATION */}
